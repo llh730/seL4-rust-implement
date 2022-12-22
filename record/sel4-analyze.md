@@ -286,12 +286,12 @@ struct tcb {
 
 schedule流程：状态机节选自博客
 
-1.判断当前ksSchedulerAction是否为SchedulerAction_ResumeCurrentThread，如果是则表示调度已经完成，进入步骤五；如果不是表示调度未完成，则判断当前进程是否可调度，如果可调度则将其加入调度队列，进入步骤二；
-2.如果ksSchedulerAction表示为SchedulerAction_ChooseNewThread，进入步骤四；否则进入步骤三；
-3.此时ksSchedulerAction表示候选进程，查看该候选进程是否满足直接调度条件，即该进程的优先级最高。如果该候选进程优先级最高则直接调用switchToThread函数，否则进入步骤四；
-4.调用scheduleChooseNewThread函数，该函数从就绪队列里找出优先级最高的进程；
-5.调度完成；
-6.最后由restore_user_context函数完成上下文的切换
+1. 判断当前ksSchedulerAction是否为SchedulerAction_ResumeCurrentThread，如果是则表示调度已经完成，进入步骤五；如果不是表示调度未完成，则判断当前进程是否可调度，如果可调度则将其加入调度队列，进入步骤二；
+2. 2.如果ksSchedulerAction表示为SchedulerAction_ChooseNewThread，进入步骤四；否则进入步骤三；
+3. 3.此时ksSchedulerAction表示候选进程，查看该候选进程是否满足直接调度条件，即该进程的优先级最高。如果该候选进程优先级最高则直接调用switchToThread函数，否则进入步骤四；
+4. 4.调用scheduleChooseNewThread函数，该函数从就绪队列里找出优先级最高的进程；
+5. 5.调度完成；
+6. 6.最后由restore_user_context函数完成上下文的切换
 
 原文链接：https://blog.csdn.net/Mr0cheng/article/details/104338064
 
