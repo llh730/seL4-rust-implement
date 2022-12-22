@@ -82,7 +82,7 @@ pub fn xSemaphoreCreateCounting(
 
 xQueueSend流程（其他过程与之类似）：
 
-![](C:\Users\ASUS\Desktop\seL4-rust-implement\record\pic\queueSend.png)
+![](.\pic\queueSend.png)
 
 ## portable模块
 
