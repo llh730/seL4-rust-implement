@@ -54,14 +54,7 @@
 ```c
 //boot.c try_init_kernel()中涉及多个初始化函数，先不做展开分析，仅列出
 static BOOT_CODE bool_t try_init_kernel(
-    paddr_t ui_p_reg_start, //用户镜像起始物理地址
-    paddr_t ui_p_reg_end,//用户镜像结束物理地址
-    sword_t pv_offset,//物理、真实地址偏移
-    vptr_t  v_entry,//虚拟地址入口
-    paddr_t dtb_phys_addr,//dtb起始地址
-    word_t  dtb_size//dtb大小
 ){
-    map_kernel_window();
     init_cpu();
     init_plat();
     /* create the cap for managing thread domains */
@@ -69,17 +62,11 @@ static BOOT_CODE bool_t try_init_kernel(
 
     /* initialise the IRQ states and provide the IRQ control cap */
     init_irqs(root_cnode_cap);
-    
-    /* create the bootinfo frame */
-    populate_bi_frame(0, CONFIG_MAX_NUM_NODES, ipcbuf_vptr, extra_bi_size);
-	
-    /* Create and map bootinfo frame cap */
     create_bi_frame_cap(
         root_cnode_cap,
         it_pd_cap,
         bi_frame_vptr
     );
-    
     /* create the idle thread */
     create_idle_thread();
     /* create the initial thread */
