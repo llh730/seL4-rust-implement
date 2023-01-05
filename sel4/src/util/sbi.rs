@@ -37,6 +37,7 @@ pub fn shutdown() -> ! {
     sbi_call(SBI_SHUTDOWN, 0, 0, 0);
     panic!("It should shutdown!");
 }
+
 pub fn sys_write(fd: usize, buffer: &[u8]){
     sbi_call(SYSCALL_WRITE, fd, buffer.as_ptr() as usize, buffer.len());
 }
