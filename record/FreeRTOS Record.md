@@ -93,13 +93,13 @@ xQueueSend流程（其他过程与之类似）：
 主要是为c语言提供的接口，在kernel提供的接口的基础上又封装了一层。
 
 ```c
-#define xTaskCreateStatic xTaskCreateStaticToC //提供了多个这样的封装
+#define vTaskSuspend vTaskSuspendToC //提供了多个这样的封装
 
 #define TaskHandle_t void*  //将任务调度、消息队列、信号量中的所有handle都定义为void* 类型
 
 //当c中想要调用rust中的函数时，如果涉及到handle 首先就要将其从void*恢复，这也就是需要重写"ToC"结尾函数的原因
 
-pub extern "C" fn vTaskSuspendToC(xTaskToSuspend_: TaskHandle_c) {
+pub extern "C" fn vTaskSuspendToC(xTaskToSuspend_: TaskHandle_t) {
     if xTaskToSuspend_ as usize == 0 {
         vTaskSuspend(None);
     } else {
