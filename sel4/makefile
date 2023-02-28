@@ -4,4 +4,4 @@ run:
             -machine virt \
             -nographic \
             -bios ./bootloader/rustsbi-qemu.bin \
-            -device loader,file=./target/riscv64imac-unknown-none-elf/debug/sel4,addr=0x8020000
+            -device loader,file=./target/riscv64imac-unknown-none-elf/release/sel4,addr=0x8020000
