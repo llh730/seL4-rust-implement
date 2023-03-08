@@ -6,21 +6,43 @@
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
 #![allow(while_true)]
+#![feature(alloc_error_handler)]
+#![feature(panic_info_message)]
 
 
+#[macro_use]
+extern crate bitflags;
+#[macro_use]
+extern crate log;
+
+extern crate alloc;
 
 
+use core::cell::RefCell;
 
-use crate::sbi::shutdown;
+use alloc::rc::Rc;
 
+use crate::kernel::object::cspace;
+use crate::tasks::run_first_task;
+use crate::{sbi::shutdown, kernel::object::structures::cap_t};
+use crate::test::cspace_test::test_cspace;
+mod sync;
 mod console;
 mod lang_items;
 mod sbi;
 mod kernel;
+// mod mm;
+mod heap_alloc;
 mod util;
 mod config;
+mod test;
+mod tasks;
+mod trap;
+mod timer;
+mod loader;
+mod syscall;
 
-
+core::arch::global_asm!(include_str!("link_app.S"));
 core::arch::global_asm!(include_str!("crt0.S"));
 
 fn clear_bss() {
@@ -34,9 +56,20 @@ fn clear_bss() {
     }
 }
 
+
+
+
 #[no_mangle]
 pub fn rust_main() {
     clear_bss();
-    println!("hello world!");
+    // mm::init();
+    println!("[kernel] Hello, world!");
+    // test_cspace();
+    heap_alloc::init_heap();
+    trap::init();
+    loader::load_apps();
+    trap::enable_timer_interrupt();
+    timer::set_next_trigger();
+    run_first_task();
     shutdown();
 }

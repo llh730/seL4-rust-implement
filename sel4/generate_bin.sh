@@ -1,0 +1,1 @@
+make -C ../user build TEST=3 CHAPTER=3 BASE=1

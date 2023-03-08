@@ -166,6 +166,9 @@ pub fn finaliseCap(cap:Rc<RefCell<cap_t>>,_final:bool,exposed:bool)->finaliseCap
         cap_cnode_cap=>{
             if _final {
                 //TODO Zombie_new()
+                fc_ret.remainder =Zombie_new(1u64<< cap_cnode_cap_get_capCNodeRadix(cap.clone()),
+                cap_cnode_cap_get_capCNodeRadix(cap.clone()),
+                cap_cnode_cap_get_capCNodePtr(cap.clone()));
                 fc_ret.cleanupInfo = cap_null_cap_new();
                 return fc_ret;
             } else {

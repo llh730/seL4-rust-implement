@@ -3,7 +3,10 @@ extern crate alloc;
 use alloc::rc::Rc;
 use core::mem::size_of;
 
-use crate::kernel::object::{cspace::*, objecttype::*, structures::*};
+use crate::{
+    kernel::object::{cspace::*, objecttype::*, structures::*},
+    println,
+};
 
 fn setUntypedCapAsFull(
     _srcCap: Rc<RefCell<cap_t>>,
@@ -18,7 +21,7 @@ fn setUntypedCapAsFull(
             && cap_untyped_cap_get_capBlockSize(_srcCap.clone())
                 == cap_untyped_cap_get_capBlockSize(_newCap.clone())
         {
-            cap_untyped_cap_set_capFreeIndex(
+            cap_untyped_cap_ptr_set_capFreeIndex(
                 _srcSlot.borrow().cap.clone(),
                 cap_get_max_free_index(_srcCap.clone()),
             )
@@ -31,17 +34,15 @@ pub fn cteInsert(
     _srcSlot: Rc<RefCell<cte_t>>,
     _destSlot: Rc<RefCell<cte_t>>,
 ) {
-    let newMDB = Rc::new(RefCell::new(mdb_node_t::default()));
-
     let srcSlot = _srcSlot.borrow();
 
     let srcMDB = srcSlot.cteMDBNode.clone();
     let srcCap = srcSlot.cap.clone();
     let newCapIsRevocable: bool = isCapRevocable(newCap.clone(), srcCap.clone());
 
-    mdb_node_set_mdbPrev(srcMDB, Rc::into_raw(_srcSlot.clone()) as u64);
-    mdb_node_set_mdbRevocable(newMDB.clone(), newCapIsRevocable as u64);
-    mdb_node_set_mdbFirstBadged(newMDB.clone(), newCapIsRevocable as u64);
+    let mut newMDB = mdb_node_set_mdbPrev(srcMDB, Rc::into_raw(_srcSlot.clone()) as u64);
+    newMDB = mdb_node_set_mdbRevocable(newMDB.clone(), newCapIsRevocable as u64);
+    newMDB = mdb_node_set_mdbFirstBadged(newMDB.clone(), newCapIsRevocable as u64);
     /* Haskell error: "cteInsert to non-empty destination" */
     assert!(cap_get_capType(_destSlot.borrow().cap.clone()) == cap_tag_t::cap_null_cap as u64);
     /* Haskell error: "cteInsert: mdb entry must be empty" */
@@ -56,11 +57,12 @@ pub fn cteInsert(
         srcSlot.cteMDBNode.clone(),
         Rc::into_raw(_destSlot.clone()) as u64,
     );
+    // println!("{} {}",Rc::into_raw(_destSlot.clone()) as u64,mdb_node_get_mdbNext(srcSlot.cteMDBNode.clone()));
     if mdb_node_get_mdbNext(newMDB.clone()) != 0 {
         unsafe {
             let cte_ptr =
                 Rc::from_raw(mdb_node_get_mdbNext(newMDB.clone()) as *const RefCell<cte_t>);
-            mdb_node_ptr_set_mdbNext(
+            mdb_node_ptr_set_mdbPrev(
                 cte_ptr.borrow().cteMDBNode.clone(),
                 Rc::into_raw(_destSlot) as u64,
             );
@@ -98,8 +100,8 @@ pub fn cteMove(
         }
         let next_ptr = mdb_node_get_mdbNext(mdb.clone());
         if next_ptr != 0 {
-            mdb_node_set_mdbPrev(
-                Rc::from_raw(next_ptr as *const Rc<RefCell<cte_t>>)
+            mdb_node_ptr_set_mdbPrev(
+                Rc::from_raw(next_ptr as *const RefCell<cte_t>)
                     .borrow()
                     .cteMDBNode
                     .clone(),
@@ -113,12 +115,13 @@ pub fn capSwapForDelete(slot1: Rc<RefCell<cte_t>>, slot2: Rc<RefCell<cte_t>>) {
     if Rc::ptr_eq(&slot1, &slot2) {
         return;
     }
-    cteSwap(
-        slot1.borrow().cap.clone(),
-        slot1.clone(),
-        slot2.borrow().cap.clone(),
-        slot2.clone(),
-    );
+    let cap1 = Rc::new(RefCell::new(cap_t {
+        words: slot1.borrow().cap.borrow().words.clone(),
+    }));
+    let cap2 = Rc::new(RefCell::new(cap_t {
+        words: slot2.borrow().cap.borrow().words.clone(),
+    }));
+    cteSwap(cap1.clone(), slot1.clone(), cap2.clone(), slot2.clone());
 }
 
 pub fn cteSwap(
@@ -146,7 +149,7 @@ pub fn cteSwap(
         }
         let next_ptr = mdb_node_get_mdbNext(mdb1.clone());
         if next_ptr != 0 {
-            mdb_node_set_mdbPrev(
+            mdb_node_ptr_set_mdbPrev(
                 Rc::from_raw(next_ptr as *const RefCell<cte_t>)
                     .borrow()
                     .cteMDBNode
@@ -170,7 +173,7 @@ pub fn cteSwap(
         }
         let next_ptr = mdb_node_get_mdbNext(mdb2.clone());
         if next_ptr != 0 {
-            mdb_node_set_mdbPrev(
+            mdb_node_ptr_set_mdbPrev(
                 Rc::from_raw(next_ptr as *const RefCell<cte_t>)
                     .borrow()
                     .cteMDBNode
@@ -259,20 +262,21 @@ pub fn emptySlot(slot: Rc<RefCell<cte_t>>, _cleanupInfo: Rc<RefCell<cap_t>>) {
             let mdbNode = slot.borrow().cteMDBNode.clone();
             let prev = mdb_node_get_mdbPrev(mdbNode.clone());
             let next = mdb_node_get_mdbNext(mdbNode.clone());
-            let prev_ptr =
-                Rc::from_raw(mdb_node_get_mdbPrev(mdbNode.clone()) as *const Rc<RefCell<cte_t>>);
-            let next_ptr =
-                Rc::from_raw(mdb_node_get_mdbNext(mdbNode.clone()) as *const Rc<RefCell<cte_t>>);
             if prev != 0 {
+                let prev_ptr =
+                    Rc::from_raw(mdb_node_get_mdbPrev(mdbNode.clone()) as *const RefCell<cte_t>);
                 mdb_node_ptr_set_mdbNext(prev_ptr.borrow().cteMDBNode.clone(), next);
             }
             if next != 0 {
-                mdb_node_set_mdbPrev(next_ptr.borrow().cteMDBNode.clone(), prev);
+                let next_ptr =
+                    Rc::from_raw(mdb_node_get_mdbNext(mdbNode.clone()) as *const RefCell<cte_t>);
+                mdb_node_ptr_set_mdbPrev(next_ptr.borrow().cteMDBNode.clone(), prev);
             }
             slot.borrow_mut().cap = cap_null_cap_new();
             slot.borrow_mut().cteMDBNode = Rc::new(RefCell::new(mdb_node_t::default()));
         }
     }
+    println!("out emptySlot");
 }
 
 pub fn ensureEmptySlot(slot: Rc<RefCell<cte_t>>) -> exception_t {
@@ -317,7 +321,11 @@ fn capRemovable(cap: Rc<RefCell<cap_t>>, slot: Rc<RefCell<cte_t>>) -> bool {
             let n = cap_zombie_cap_get_capZombieNumber(cap.clone());
             let ptr = cap_zombie_cap_get_capZombiePtr(cap.clone());
             unsafe {
+                println!("{}",ptr);
                 let z_slot = Rc::from_raw(ptr as *const RefCell<cte_t>);
+                println!("n:{}",n);
+                println!("bool:{}",slot==z_slot);
+                println!("out here");
                 return n == 0 || (n == 1 && slot == z_slot);
             }
         }
@@ -339,7 +347,7 @@ pub fn capCyclicZombie(cap: Rc<RefCell<cap_t>>, slot: Rc<RefCell<cte_t>>) -> boo
 pub fn reduceZombie(slot: Rc<RefCell<cte_t>>, immediate: bool) -> exception_t {
     unsafe {
         assert!(cap_get_capType(slot.borrow().cap.clone()) == cap_zombie_cap);
-        let  status: exception_t;
+        let status: exception_t;
         let ptr = Rc::from_raw(
             cap_zombie_cap_get_capZombiePtr(slot.borrow().cap.clone()) as *const RefCell<cte_t>
         );
@@ -397,7 +405,8 @@ pub fn finaliseSlot(slot: Rc<RefCell<cte_t>>, immediate: bool) -> finaliseSlot_r
     while cap_get_capType(slot.borrow().cap.clone()) != cap_null_cap {
         _final = isFinalcapability(slot.clone());
         fc_ret = finaliseCap(slot.borrow().cap.clone(), _final, false);
-        if capRemovable(fc_ret.remainder.clone(), slot.clone()) {
+        let flag =capRemovable(fc_ret.remainder.clone(), slot.clone());
+        if flag  {
             ret.status = exception_t::EXCEPTION_NONE;
             ret.success = true;
             ret.cleanupInfo = fc_ret.cleanupInfo;
@@ -450,7 +459,7 @@ pub fn insertNewCap(
             mdb_node_new(next as u64, 1u64, 1u64, Rc::into_raw(parent.clone()) as u64);
         if next != 0 {
             let next_ptr = Rc::from_raw(next as *const RefCell<cte_t>);
-            mdb_node_set_mdbPrev(
+            mdb_node_ptr_set_mdbPrev(
                 next_ptr.borrow().cteMDBNode.clone(),
                 Rc::into_raw(_slot.clone()) as u64,
             );

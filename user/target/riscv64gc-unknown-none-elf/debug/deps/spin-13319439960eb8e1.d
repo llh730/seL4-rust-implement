@@ -1,0 +1,12 @@
+/mnt/c/Users/ASUS/Desktop/seL4-rust-implement/user/target/riscv64gc-unknown-none-elf/debug/deps/spin-13319439960eb8e1.rmeta: /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/lib.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/barrier.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/lazy.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/mutex.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/mutex/spin.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/once.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/relax.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/rwlock.rs
+
+/mnt/c/Users/ASUS/Desktop/seL4-rust-implement/user/target/riscv64gc-unknown-none-elf/debug/deps/spin-13319439960eb8e1.d: /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/lib.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/barrier.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/lazy.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/mutex.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/mutex/spin.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/once.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/relax.rs /home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/rwlock.rs
+
+/home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/lib.rs:
+/home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/barrier.rs:
+/home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/lazy.rs:
+/home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/mutex.rs:
+/home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/mutex/spin.rs:
+/home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/once.rs:
+/home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/relax.rs:
+/home/llh730/.cargo/registry/src/github.com-1ecc6299db9ec823/spin-0.9.5/src/rwlock.rs:

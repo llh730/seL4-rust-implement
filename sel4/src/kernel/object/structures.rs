@@ -191,6 +191,7 @@ pub fn mdb_node_get_mdbNext(_mdb_node: Rc<RefCell<mdb_node_t>>) -> u64 {
 #[inline]
 pub fn mdb_node_ptr_set_mdbNext(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64) {
     let mut mdb_node = _mdb_node.borrow_mut();
+
     assert!(
         (((!0x7ffffffffcu64 << 0) | 0xffffff8000000000) & v64)
             == if true && (v64 & (1u64 << (38))) != 0 {
@@ -215,8 +216,8 @@ pub fn mdb_node_get_mdbRevocable(_mdb_node: Rc<RefCell<mdb_node_t>>) -> u64 {
 }
 
 #[inline]
-pub fn mdb_node_set_mdbRevocable(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64) {
-    let mut mdb_node = _mdb_node.borrow_mut();
+pub fn mdb_node_set_mdbRevocable(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64)->Rc<RefCell<mdb_node_t>> {
+    let mut mdb_node = mdb_node_t{words:_mdb_node.borrow().words.clone()};
     assert!(
         (((!0x2u64 >> 1) | 0x0) & v64)
             == (if false && (v64 & (1u64 << (38))) != 0 {
@@ -227,6 +228,7 @@ pub fn mdb_node_set_mdbRevocable(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64) {
     );
     mdb_node.words[1] &= !0x2u64;
     mdb_node.words[1] |= (v64 << 1) & 0x2;
+    return Rc::new(RefCell::new(mdb_node));
 }
 
 #[inline]
@@ -241,8 +243,8 @@ pub fn mdb_node_get_mdbFirstBadged(_mdb_node: Rc<RefCell<mdb_node_t>>) -> u64 {
 }
 
 #[inline]
-pub fn mdb_node_set_mdbFirstBadged(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64) {
-    let mut mdb_node = _mdb_node.borrow_mut();
+pub fn mdb_node_set_mdbFirstBadged(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64)->Rc<RefCell<mdb_node_t>> {
+    let mut mdb_node = mdb_node_t{words:_mdb_node.borrow().words.clone()};
     assert!(
         (((!0x1u64 >> 0) | 0x0) & v64)
             == (if false && (v64 & (1u64 << (38))) != 0 {
@@ -253,6 +255,7 @@ pub fn mdb_node_set_mdbFirstBadged(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64)
     );
     mdb_node.words[1] &= !0x1u64;
     mdb_node.words[1] |= (v64 << 0) & 0x1u64;
+    return Rc::new(RefCell::new(mdb_node));
 }
 
 #[inline]
@@ -267,7 +270,24 @@ pub fn mdb_node_get_mdbPrev(_mdb_node: Rc<RefCell<mdb_node_t>>) -> u64 {
 }
 
 #[inline]
-pub fn mdb_node_set_mdbPrev(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64) {
+pub fn mdb_node_set_mdbPrev(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64)->Rc<RefCell<mdb_node_t>> {
+    let mut mdb_node = mdb_node_t{words:_mdb_node.borrow().words.clone()};
+    assert!(
+        (((!0xffffffffffffffffu64 >> 0) | 0x0) & v64)
+            == (if false && (v64 & (1u64 << (38))) != 0 {
+                0x0
+            } else {
+                0
+            })
+    );
+    mdb_node.words[0] &= !0xffffffffffffffffu64;
+    mdb_node.words[0] |= (v64 << 0) & 0xffffffffffffffffu64;
+    return Rc::new(RefCell::new(mdb_node));
+}
+
+
+#[inline]
+pub fn mdb_node_ptr_set_mdbPrev(_mdb_node: Rc<RefCell<mdb_node_t>>, v64: u64) {
     let mut mdb_node = _mdb_node.borrow_mut();
     assert!(
         (((!0xffffffffffffffffu64 >> 0) | 0x0) & v64)
@@ -418,8 +438,29 @@ pub fn cap_untyped_cap_get_capFreeIndex(_cap: Rc<RefCell<cap_t>>) -> u64 {
 }
 
 #[inline]
-pub fn cap_untyped_cap_set_capFreeIndex(_cap: Rc<RefCell<cap_t>>, v64: u64) {
+pub fn cap_untyped_cap_set_capFreeIndex(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
+    // let mut cap=Rc::new(RefCell::)
+    assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_untyped_cap as u64);
+    /* fail if user has passed bits that we will override */
+    assert!(
+        (((!0xfffffffffe000000u64 >> 25) | 0x0) & v64)
+            == (if false && (v64 & (1u64 << (38))) != 0 {
+                0x0
+            } else {
+                0
+            })
+    );
+
+    cap.words[1] &= !0xfffffffffe000000u64;
+    cap.words[1] |= (v64 << 25) & 0xfffffffffe000000u64;
+    return Rc::new(RefCell::new(cap));
+}
+
+#[inline]
+pub fn cap_untyped_cap_ptr_set_capFreeIndex(_cap: Rc<RefCell<cap_t>>, v64: u64) {
     let mut cap = _cap.borrow_mut();
+    // let mut cap=Rc::new(RefCell::)
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_untyped_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -434,6 +475,7 @@ pub fn cap_untyped_cap_set_capFreeIndex(_cap: Rc<RefCell<cap_t>>, v64: u64) {
     cap.words[1] &= !0xfffffffffe000000u64;
     cap.words[1] |= (v64 << 25) & 0xfffffffffe000000u64;
 }
+
 
 #[inline]
 pub fn cap_untyped_cap_get_capPtr(_cap: Rc<RefCell<cap_t>>) -> u64 {
@@ -537,8 +579,8 @@ pub fn cap_endpoint_cap_get_capEPBadge(_cap: Rc<RefCell<cap_t>>) -> u64 {
 }
 
 #[inline]
-pub fn cap_endpoint_cap_set_capEPBadge(_cap: Rc<RefCell<cap_t>>, v64: u64) {
-    let mut cap = _cap.borrow_mut();
+pub fn cap_endpoint_cap_set_capEPBadge(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_endpoint_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -552,6 +594,7 @@ pub fn cap_endpoint_cap_set_capEPBadge(_cap: Rc<RefCell<cap_t>>, v64: u64) {
 
     cap.words[1] &= !0xffffffffffffffffu64;
     cap.words[1] |= (v64 << 0) & 0xffffffffffffffffu64;
+    return Rc::new(RefCell::new(cap));
 }
 
 #[inline]
@@ -569,8 +612,8 @@ pub fn cap_endpoint_cap_get_capCanGrantReply(_cap: Rc<RefCell<cap_t>>) -> u64 {
 }
 
 #[inline]
-pub fn cap_endpoint_cap_set_capCanGrantReply(_cap: Rc<RefCell<cap_t>>, v64: u64) {
-    let mut cap = _cap.borrow_mut();
+pub fn cap_endpoint_cap_set_capCanGrantReply(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_endpoint_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -583,6 +626,7 @@ pub fn cap_endpoint_cap_set_capCanGrantReply(_cap: Rc<RefCell<cap_t>>, v64: u64)
     );
     cap.words[0] &= !0x400000000000000u64;
     cap.words[0] |= (v64 << 58) & 0x400000000000000u64;
+    return Rc::new(RefCell::new(cap));
 }
 
 #[inline]
@@ -599,8 +643,8 @@ pub fn cap_endpoint_cap_get_capCanGrant(_cap: Rc<RefCell<cap_t>>) -> u64 {
     return ret;
 }
 #[inline]
-pub fn cap_endpoint_cap_set_capCanGrant(_cap: Rc<RefCell<cap_t>>, v64: u64) {
-    let mut cap = _cap.borrow_mut();
+pub fn cap_endpoint_cap_set_capCanGrant(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_endpoint_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -614,6 +658,7 @@ pub fn cap_endpoint_cap_set_capCanGrant(_cap: Rc<RefCell<cap_t>>, v64: u64) {
 
     cap.words[0] &= !0x200000000000000u64;
     cap.words[0] |= (v64 << 57) & 0x200000000000000u64;
+    return Rc::new(RefCell::new(cap));
 }
 
 #[inline]
@@ -631,8 +676,8 @@ pub fn cap_endpoint_cap_get_capCanReceive(_cap: Rc<RefCell<cap_t>>) -> u64 {
 }
 
 #[inline]
-pub fn cap_endpoint_cap_set_capCanReceive(_cap: Rc<RefCell<cap_t>>, v64: u64) {
-    let mut cap = _cap.borrow_mut();
+pub fn cap_endpoint_cap_set_capCanReceive(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_endpoint_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -646,6 +691,7 @@ pub fn cap_endpoint_cap_set_capCanReceive(_cap: Rc<RefCell<cap_t>>, v64: u64) {
 
     cap.words[0] &= !0x100000000000000u64;
     cap.words[0] |= (v64 << 56) & 0x100000000000000u64;
+    return Rc::new(RefCell::new(cap));
 }
 
 #[inline]
@@ -663,8 +709,8 @@ pub fn cap_endpoint_cap_get_capCanSend(_cap: Rc<RefCell<cap_t>>) -> u64 {
 }
 
 #[inline]
-pub fn cap_endpoint_cap_set_capCanSend(_cap: Rc<RefCell<cap_t>>, v64: u64) {
-    let mut cap = _cap.borrow_mut();
+pub fn cap_endpoint_cap_set_capCanSend(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_endpoint_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -678,6 +724,7 @@ pub fn cap_endpoint_cap_set_capCanSend(_cap: Rc<RefCell<cap_t>>, v64: u64) {
 
     cap.words[0] &= !0x80000000000000u64;
     cap.words[0] |= (v64 << 55) & 0x80000000000000u64;
+    return Rc::new(RefCell::new(cap));
 }
 
 #[inline]
@@ -766,8 +813,8 @@ pub fn cap_cnode_cap_get_capCNodeGuard(_cap: Rc<RefCell<cap_t>>) -> u64 {
 }
 
 #[inline]
-pub fn cap_cnode_cap_set_capCNodeGuard(_cap: Rc<RefCell<cap_t>>, v64: u64) {
-    let mut cap = _cap.borrow_mut();
+pub fn cap_cnode_cap_set_capCNodeGuard(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_cnode_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -781,6 +828,7 @@ pub fn cap_cnode_cap_set_capCNodeGuard(_cap: Rc<RefCell<cap_t>>, v64: u64) {
 
     cap.words[1] &= !0xffffffffffffffffu64;
     cap.words[1] |= (v64 << 0) & 0xffffffffffffffffu64;
+    return Rc::new(RefCell::new(cap));
 }
 
 #[inline]
@@ -798,8 +846,8 @@ pub fn cap_cnode_cap_get_capCNodeGuardSize(_cap: Rc<RefCell<cap_t>>) -> u64 {
 }
 
 #[inline]
-pub fn cap_cnode_cap_set_capCNodeGuardSize(_cap: Rc<RefCell<cap_t>>, v64: u64) {
-    let mut cap = _cap.borrow_mut();
+pub fn cap_cnode_cap_set_capCNodeGuardSize(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_cnode_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -813,6 +861,7 @@ pub fn cap_cnode_cap_set_capCNodeGuardSize(_cap: Rc<RefCell<cap_t>>, v64: u64) {
 
     cap.words[0] &= !0x7e0000000000000u64;
     cap.words[0] |= (v64 << 53) & 0x7e0000000000000u64;
+    return Rc::new(RefCell::new(cap));
 }
 
 #[inline]
@@ -893,8 +942,8 @@ pub fn cap_zombie_cap_get_capZombieID(_cap: Rc<RefCell<cap_t>>) -> u64 {
 }
 
 #[inline]
-pub fn cap_zombie_cap_set_capZombieID(_cap: Rc<RefCell<cap_t>>, v64: u64) {
-    let mut cap = _cap.borrow_mut();
+pub fn cap_zombie_cap_set_capZombieID(_cap: Rc<RefCell<cap_t>>, v64: u64)->Rc<RefCell<cap_t>> {
+    let mut cap = cap_t{words:_cap.borrow().words.clone()};
     assert!(((cap.words[0] >> 59) & 0x1f) == cap_tag_t::cap_zombie_cap as u64);
     /* fail if user has passed bits that we will override */
     assert!(
@@ -908,6 +957,7 @@ pub fn cap_zombie_cap_set_capZombieID(_cap: Rc<RefCell<cap_t>>, v64: u64) {
 
     cap.words[1] &= !0xffffffffffffffffu64;
     cap.words[1] |= (v64 << 0) & 0xffffffffffffffffu64;
+    return Rc::new(RefCell::new(cap));
 }
 
 #[inline]
@@ -955,8 +1005,9 @@ pub fn cap_zombie_cap_get_capZombiePtr(cap: Rc<RefCell<cap_t>>) -> u64 {
     return cap_zombie_cap_get_capZombieID(cap.clone()) & !MASK(radix + 1);
 }
 #[inline]
-pub fn cap_zombie_cap_set_capZombieNumber(cap: Rc<RefCell<cap_t>>, n: u64) {
+pub fn cap_zombie_cap_set_capZombieNumber(_cap: Rc<RefCell<cap_t>>, n: u64)->Rc<RefCell<cap_t>> {
+    let cap = Rc::new(RefCell::new(cap_t{words:_cap.borrow().words.clone()}));
     let radix = cap_zombie_cap_get_capZombieBits(cap.clone());
     let ptr = cap_zombie_cap_get_capZombieID(cap.clone()) & !MASK(radix + 1);
-    cap_zombie_cap_set_capZombieID(cap.clone(), ptr | (n & MASK(radix + 1)));
+    cap_zombie_cap_set_capZombieID(cap.clone(), ptr | (n & MASK(radix + 1)))
 }
