@@ -662,7 +662,7 @@ Disassembly of section .text:
 802016b0: 03 b1 85 00  	ld	sp, 8(a1)
 802016b4: 82 80        	ret
 
-00000000802016b6 <_ZN4core3ptr47drop_in_place$LT$core..cell..BorrowMutError$GT$17h1c74932dfe841b87E.llvm.13592730992780682078>:
+00000000802016b6 <_ZN4core3ptr47drop_in_place$LT$core..cell..BorrowMutError$GT$17h1c74932dfe841b87E.llvm.5482690835712375156>:
 802016b6: 41 11        	addi	sp, sp, -16
 802016b8: 06 e4        	sd	ra, 8(sp)
 802016ba: 22 e0        	sd	s0, 0(sp)
@@ -1091,7 +1091,7 @@ Disassembly of section .text:
 80201adc: e7 80 80 1e  	jalr	488(ra)
 80201ae0: 00 00        	unimp	
 
-0000000080201ae2 <_ZN4sel410heap_alloc9init_heap17h3294eb883f2849c6E>:
+0000000080201ae2 <_ZN4sel42pt14heap_allocator9init_heap17h0d8d89e8e09f0e25E>:
 80201ae2: 01 11        	addi	sp, sp, -32
 80201ae4: 06 ec        	sd	ra, 24(sp)
 80201ae6: 22 e8        	sd	s0, 16(sp)

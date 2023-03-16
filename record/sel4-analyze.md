@@ -283,56 +283,7 @@ schedule流程：状态机节选自博客
 原文链接：https://blog.csdn.net/Mr0cheng/article/details/104338064
 
 ```c
-void schedule(void)
-{
-#ifdef CONFIG_KERNEL_MCS
-    awaken();
-    checkDomainTime();
-#endif
 
-    if (NODE_STATE(ksSchedulerAction) != SchedulerAction_ResumeCurrentThread) {//如果scheduleraction要求重启当前线程，那就重启当前线程，调度直接完成。
-        bool_t was_runnable;
-        if (isSchedulable(NODE_STATE(ksCurThread))) {//如果当前线程仍然可执行，那就把它加入到ready队列头部
-            was_runnable = true;
-            SCHED_ENQUEUE_CURRENT_TCB;
-        } else {
-            was_runnable = false;
-        }
-
-        if (NODE_STATE(ksSchedulerAction) == SchedulerAction_ChooseNewThread) {//如果scheduler要求必须执行新线程，就选择新线程执行。
-            scheduleChooseNewThread();
-        } else {
-            tcb_t *candidate = NODE_STATE(ksSchedulerAction);//否则，此时scheduleraction代表的为竞争线程
-            assert(isSchedulable(candidate));
-            /* Avoid checking bitmap when ksCurThread is higher prio, to
-             * match fast path.
-             * Don't look at ksCurThread prio when it's idle, to respect
-             * information flow in non-fastpath cases. */
-            bool_t fastfail =
-                NODE_STATE(ksCurThread) == NODE_STATE(ksIdleThread)
-                || (candidate->tcbPriority < NODE_STATE(ksCurThread)->tcbPriority);
-            if (fastfail &&
-                !isHighestPrio(ksCurDomain, candidate->tcbPriority)) {//（竞争线程优先级小于当前线程||当前线程优先级与初始线程相同）&&竞争线程并非最高优先级。
-                SCHED_ENQUEUE(candidate);
-                /* we can't, need to reschedule */
-                NODE_STATE(ksSchedulerAction) = SchedulerAction_ChooseNewThread;//选择新线程而并非竞争线程执行。
-                scheduleChooseNewThread();
-            } else if (was_runnable && candidate->tcbPriority == NODE_STATE(ksCurThread)->tcbPriority) {
-                /* We append the candidate at the end of the scheduling queue, that way the
-                 * current thread, that was enqueued at the start of the scheduling queue
-                 * will get picked during chooseNewThread */
-                //如果两者优先级相同，仍选择当前线程执行。
-                SCHED_APPEND(candidate);
-                NODE_STATE(ksSchedulerAction) = SchedulerAction_ChooseNewThread;
-                scheduleChooseNewThread();
-            } else {//选择新线程执行
-                assert(candidate != NODE_STATE(ksCurThread));
-                switchToThread(candidate);
-            }
-        }
-    }
-    NODE_STATE(ksSchedulerAction) = SchedulerAction_ResumeCurrentThread;
-}
 ```
 
 

@@ -32,7 +32,8 @@ mod lang_items;
 mod sbi;
 mod kernel;
 // mod mm;
-mod heap_alloc;
+mod pt;
+// mod heap_alloc;
 mod util;
 mod config;
 mod test;
@@ -65,7 +66,7 @@ pub fn rust_main() {
     // mm::init();
     println!("[kernel] Hello, world!");
     // test_cspace();
-    heap_alloc::init_heap();
+    pt::heap_allocator::init_heap();
     trap::init();
     loader::load_apps();
     trap::enable_timer_interrupt();
