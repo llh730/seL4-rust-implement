@@ -1,41 +1,36 @@
-use crate::kernel::object::structures::*;
+use crate::{kernel::object::structures::*, MASK};
 extern crate alloc;
 use alloc::rc::Rc;
 use core::cell::{RefCell};
 
 //bits
 
-pub const seL4_EndpointBits: u64 = 4;
-pub const seL4_NotificationBits: u64 = 4;
-pub const seL4_ReplyBits: u64 = 4;
-pub const PT_SIZE_BITS: u64 = 12;
-pub const seL4_SlotBits: u64 = 4;
+pub const seL4_EndpointBits: usize = 4;
+pub const seL4_NotificationBits: usize = 4;
+pub const seL4_ReplyBits: usize = 4;
+pub const PT_SIZE_BITS: usize = 12;
+pub const seL4_SlotBits: usize = 4;
 
 //cap_tag_t
-pub const cap_null_cap: u64 = 0;
-pub const cap_untyped_cap: u64 = 2;
-pub const cap_endpoint_cap: u64 = 4;
-pub const cap_notification_cap: u64 = 6;
-pub const cap_reply_cap: u64 = 8;
-pub const cap_cnode_cap: u64 = 10;
-pub const cap_thread_cap: u64 = 12;
-pub const cap_irq_control_cap: u64 = 14;
-pub const cap_irq_handler_cap: u64 = 16;
-pub const cap_zombie_cap: u64 = 18;
-pub const cap_domain_cap: u64 = 20;
-pub const cap_frame_cap: u64 = 1;
-pub const cap_page_table_cap: u64 = 3;
-pub const cap_asid_control_cap: u64 = 11;
-pub const cap_asid_pool_cap: u64 = 13;
-
-pub fn MASK(n: u64) -> u64 {
-    return (1u64 << n) - 1u64;
-}
+pub const cap_null_cap: usize = 0;
+pub const cap_untyped_cap: usize = 2;
+pub const cap_endpoint_cap: usize = 4;
+pub const cap_notification_cap: usize = 6;
+pub const cap_reply_cap: usize = 8;
+pub const cap_cnode_cap: usize = 10;
+pub const cap_thread_cap: usize = 12;
+pub const cap_irq_control_cap: usize = 14;
+pub const cap_irq_handler_cap: usize = 16;
+pub const cap_zombie_cap: usize = 18;
+pub const cap_domain_cap: usize = 20;
+pub const cap_frame_cap: usize = 1;
+pub const cap_page_table_cap: usize = 3;
+pub const cap_asid_control_cap: usize = 11;
+pub const cap_asid_pool_cap: usize = 13;
 
 
-pub fn BIT(n:u64)->u64{
-    return 1u64 << n;
-}
+
+
 
 
 pub fn isCapRevocable(_derivedCap: Rc<RefCell<cap_t>>, _srcCap: Rc<RefCell<cap_t>>) -> bool {
@@ -52,18 +47,20 @@ pub fn isCapRevocable(_derivedCap: Rc<RefCell<cap_t>>, _srcCap: Rc<RefCell<cap_t
     }
 }
 
-fn cap_get_capPtr(cap: Rc<RefCell<cap_t>>) -> u64 {
+pub fn cap_get_capPtr(cap: Rc<RefCell<cap_t>>) -> usize {
     match cap_get_capType(cap.clone()) {
         cap_untyped_cap => return cap_untyped_cap_get_capPtr(cap.clone()),
         cap_endpoint_cap => return cap_endpoint_cap_get_capEPPtr(cap.clone()),
         cap_notification_cap => return 0,
         cap_cnode_cap => return cap_cnode_cap_get_capCNodePtr(cap.clone()),
-        cap_page_table_cap => return 0,
+        cap_page_table_cap => return cap_page_table_cap_get_capPTBasePtr(cap),
+        cap_frame_cap=>return cap_frame_cap_get_capFBasePtr(cap),
+        cap_asid_pool_cap=>return cap_asid_pool_cap_get_capASIDPool(cap.clone()),
         _ => return 0,
     }
 }
 
-pub fn cap_get_capSizeBits(cap: Rc<RefCell<cap_t>>) -> u64 {
+pub fn cap_get_capSizeBits(cap: Rc<RefCell<cap_t>>) -> usize {
     match cap_get_capType(cap.clone()) {
         cap_untyped_cap => return cap_untyped_cap_get_capBlockSize(cap.clone()),
         cap_endpoint_cap => return seL4_EndpointBits,
@@ -83,8 +80,8 @@ pub fn sameRegionAs(cap1: Rc<RefCell<cap_t>>, cap2: Rc<RefCell<cap_t>>)->bool {
                 let aBase = cap_untyped_cap_get_capPtr(cap1.clone());
                 let bBase = cap_get_capPtr(cap2.clone());
 
-                let aTop = aBase + MASK(cap_untyped_cap_get_capBlockSize(cap1.clone()));
-                let bTop = bBase + MASK(cap_get_capSizeBits(cap2.clone()));
+                let aTop = aBase + MASK!(cap_untyped_cap_get_capBlockSize(cap1.clone()));
+                let bTop = bBase + MASK!(cap_get_capSizeBits(cap2.clone()));
                 return (aBase <= bBase) && (bTop <= aTop) && (bBase <= bTop);
             }
             
@@ -166,7 +163,7 @@ pub fn finaliseCap(cap:Rc<RefCell<cap_t>>,_final:bool,exposed:bool)->finaliseCap
         cap_cnode_cap=>{
             if _final {
                 //TODO Zombie_new()
-                fc_ret.remainder =Zombie_new(1u64<< cap_cnode_cap_get_capCNodeRadix(cap.clone()),
+                fc_ret.remainder =Zombie_new(1usize<< cap_cnode_cap_get_capCNodeRadix(cap.clone()),
                 cap_cnode_cap_get_capCNodeRadix(cap.clone()),
                 cap_cnode_cap_get_capCNodePtr(cap.clone()));
                 fc_ret.cleanupInfo = cap_null_cap_new();

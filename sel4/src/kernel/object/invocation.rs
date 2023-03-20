@@ -1,2 +1,2 @@
-pub const CNodeRevoke:u64=1;
-// pub const CNodeRevok:u64=128;
+pub const CNodeRevoke:usize=1;
+// pub const CNodeRevok:usize=128;

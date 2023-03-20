@@ -17,10 +17,10 @@ run: $(KERNEL_BIN)
             -machine virt \
             -nographic \
             -bios ./bootloader/rustsbi-qemu.bin \
-            -device loader,file=./target/riscv64gc-unknown-none-elf/release/sel4,addr=0x8020000
+            -device loader,file=./target/riscv64gc-unknown-none-elf/release/sel4,addr=0x80200000
 
 kernel:
-	@make -C ../user build TEST=$(TEST) CHAPTER=$(CHAPTER) BASE=$(BASE)
+	# @make -C ../user build TEST=$(TEST) CHAPTER=$(CHAPTER) BASE=$(BASE)
 	@cargo build --release
 
 build: env $(KERNEL_BIN)

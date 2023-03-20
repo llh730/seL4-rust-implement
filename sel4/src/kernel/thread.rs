@@ -14,21 +14,21 @@ enum ThreadState{
 
 pub struct Tcb {
     tcbState:ThreadState,
-    tcbBoundNotification:Option<u64>,
-    seL4_Fault_t:Option<u64>,
-    tcbLookupFailure:Option<u64>,
+    tcbBoundNotification:Option<usize>,
+    seL4_Fault_t:Option<usize>,
+    tcbLookupFailure:Option<usize>,
     /* Domain, 1 byte (padded to 1 word) */
-    domain:u64,
+    domain:usize,
     /*  maximum controlled priority, 1 byte (padded to 1 word) */
-    tcbMCP:u64,
+    tcbMCP:usize,
     /* Priority, 1 byte (padded to 1 word) */
-    tcbPriority:u64,
+    tcbPriority:usize,
     /* Timeslice remaining, 1 word */
-    tcbTimeSlice:u64,
+    tcbTimeSlice:usize,
     /* Capability pointer to thread fault handler, 1 word */
-    tcbFaultHandler:Option<u64>,
+    tcbFaultHandler:Option<usize>,
     /* userland virtual address of thread IPC buffer, 1 word */
-    tcbIPCBuffer:u64,
+    tcbIPCBuffer:usize,
     /* Previous and next pointers for scheduler queues , 2 words */
     tcb_sched_next:Arc<Tcb>,
     tcbSchedPrev:Arc<Tcb>,

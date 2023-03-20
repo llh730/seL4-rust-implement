@@ -8,6 +8,7 @@
 #![allow(while_true)]
 #![feature(alloc_error_handler)]
 #![feature(panic_info_message)]
+#![feature(stdsimd)]
 
 
 #[macro_use]
@@ -18,23 +19,23 @@ extern crate log;
 extern crate alloc;
 
 
-use core::cell::RefCell;
 
-use alloc::rc::Rc;
+use core::arch::asm;
+use core::arch::riscv64::sfence_vma_all;
 
-use crate::kernel::object::cspace;
+use riscv::register::{satp, sstatus, sepc};
+
+use crate::kernel::vspace::{write_satp, read_satp, map_kernel_window, pt_init};
 use crate::tasks::run_first_task;
 use crate::{sbi::shutdown, kernel::object::structures::cap_t};
 use crate::test::cspace_test::test_cspace;
+mod heap_alloc;
 mod sync;
 mod console;
 mod lang_items;
 mod sbi;
 mod kernel;
-// mod mm;
-mod pt;
-// mod heap_alloc;
-mod util;
+mod utils;
 mod config;
 mod test;
 mod tasks;
@@ -63,14 +64,15 @@ fn clear_bss() {
 #[no_mangle]
 pub fn rust_main() {
     clear_bss();
-    // mm::init();
     println!("[kernel] Hello, world!");
-    // test_cspace();
-    pt::heap_allocator::init_heap();
-    trap::init();
-    loader::load_apps();
-    trap::enable_timer_interrupt();
-    timer::set_next_trigger();
-    run_first_task();
+    pt_init();
     shutdown();
+}
+
+#[no_mangle]
+pub fn jump_to_virtual_address(){
+    println!("jump to virtual address");
+    unsafe{
+        sfence_vma_all();
+    }
 }

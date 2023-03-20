@@ -74,6 +74,6 @@ pub fn test_cspace(){
     // // emptySlot(destSlot2.clone(),cap_null_cap_new());
     // cteDelete(destSlot2.clone(),true);
     // // assert!(cteDelete(destSlot2.clone(),true)==exception_t::EXCEPTION_NONE);
-    // // println!("{}",cteDelete(destSlot.clone(),true) as u64);
+    // // println!("{}",cteDelete(destSlot.clone(),true) as usize);
     // println!("destSlot2 after delete:{:?}", destSlot2);
 }

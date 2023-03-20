@@ -1,7 +1,5 @@
 use riscv::register::sstatus::{self, Sstatus, SPP};
 
-use crate::println;
-
 #[derive(Debug)]
 #[repr(C)]
 pub struct TrapContext {

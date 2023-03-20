@@ -13,8 +13,8 @@ fn setUntypedCapAsFull(
     _newCap: Rc<RefCell<cap_t>>,
     _srcSlot: Rc<RefCell<cte_t>>,
 ) {
-    if cap_get_capType(_srcCap.clone()) == cap_tag_t::cap_untyped_cap as u64
-        && cap_get_capType(_newCap.clone()) == cap_tag_t::cap_untyped_cap as u64
+    if cap_get_capType(_srcCap.clone()) == cap_tag_t::cap_untyped_cap as usize
+        && cap_get_capType(_newCap.clone()) == cap_tag_t::cap_untyped_cap as usize
     {
         if cap_untyped_cap_get_capPtr(_srcCap.clone())
             == cap_untyped_cap_get_capPtr(_newCap.clone())
@@ -40,11 +40,11 @@ pub fn cteInsert(
     let srcCap = srcSlot.cap.clone();
     let newCapIsRevocable: bool = isCapRevocable(newCap.clone(), srcCap.clone());
 
-    let mut newMDB = mdb_node_set_mdbPrev(srcMDB, Rc::into_raw(_srcSlot.clone()) as u64);
-    newMDB = mdb_node_set_mdbRevocable(newMDB.clone(), newCapIsRevocable as u64);
-    newMDB = mdb_node_set_mdbFirstBadged(newMDB.clone(), newCapIsRevocable as u64);
+    let mut newMDB = mdb_node_set_mdbPrev(srcMDB, Rc::into_raw(_srcSlot.clone()) as usize);
+    newMDB = mdb_node_set_mdbRevocable(newMDB.clone(), newCapIsRevocable as usize);
+    newMDB = mdb_node_set_mdbFirstBadged(newMDB.clone(), newCapIsRevocable as usize);
     /* Haskell error: "cteInsert to non-empty destination" */
-    assert!(cap_get_capType(_destSlot.borrow().cap.clone()) == cap_tag_t::cap_null_cap as u64);
+    assert!(cap_get_capType(_destSlot.borrow().cap.clone()) == cap_tag_t::cap_null_cap as usize);
     /* Haskell error: "cteInsert: mdb entry must be empty" */
     assert!(
         mdb_node_get_mdbNext(_destSlot.borrow().cteMDBNode.clone()) == 0
@@ -55,16 +55,16 @@ pub fn cteInsert(
     _destSlot.borrow_mut().cteMDBNode = newMDB.clone();
     mdb_node_ptr_set_mdbNext(
         srcSlot.cteMDBNode.clone(),
-        Rc::into_raw(_destSlot.clone()) as u64,
+        Rc::into_raw(_destSlot.clone()) as usize,
     );
-    // println!("{} {}",Rc::into_raw(_destSlot.clone()) as u64,mdb_node_get_mdbNext(srcSlot.cteMDBNode.clone()));
+    // println!("{} {}",Rc::into_raw(_destSlot.clone()) as usize,mdb_node_get_mdbNext(srcSlot.cteMDBNode.clone()));
     if mdb_node_get_mdbNext(newMDB.clone()) != 0 {
         unsafe {
             let cte_ptr =
                 Rc::from_raw(mdb_node_get_mdbNext(newMDB.clone()) as *const RefCell<cte_t>);
             mdb_node_ptr_set_mdbPrev(
                 cte_ptr.borrow().cteMDBNode.clone(),
-                Rc::into_raw(_destSlot) as u64,
+                Rc::into_raw(_destSlot) as usize,
             );
         }
     }
@@ -77,7 +77,7 @@ pub fn cteMove(
 ) {
     let mdb = _srcSlot.borrow().cteMDBNode.clone();
     /* Haskell error: "cteInsert to non-empty destination" */
-    assert!(cap_get_capType(_destSlot.borrow().cap.clone()) == cap_tag_t::cap_null_cap as u64);
+    assert!(cap_get_capType(_destSlot.borrow().cap.clone()) == cap_tag_t::cap_null_cap as usize);
     /* Haskell error: "cteInsert: mdb entry must be empty" */
     assert!(
         mdb_node_get_mdbNext(_destSlot.borrow().cteMDBNode.clone()) == 0
@@ -95,7 +95,7 @@ pub fn cteMove(
                     .borrow()
                     .cteMDBNode
                     .clone(),
-                Rc::into_raw(_destSlot.clone()) as u64,
+                Rc::into_raw(_destSlot.clone()) as usize,
             );
         }
         let next_ptr = mdb_node_get_mdbNext(mdb.clone());
@@ -105,7 +105,7 @@ pub fn cteMove(
                     .borrow()
                     .cteMDBNode
                     .clone(),
-                Rc::into_raw(_destSlot.clone()) as u64,
+                Rc::into_raw(_destSlot.clone()) as usize,
             );
         }
     }
@@ -144,7 +144,7 @@ pub fn cteSwap(
                     .borrow()
                     .cteMDBNode
                     .clone(),
-                Rc::into_raw(_slot2.clone()) as u64,
+                Rc::into_raw(_slot2.clone()) as usize,
             );
         }
         let next_ptr = mdb_node_get_mdbNext(mdb1.clone());
@@ -154,7 +154,7 @@ pub fn cteSwap(
                     .borrow()
                     .cteMDBNode
                     .clone(),
-                Rc::into_raw(_slot2.clone()) as u64,
+                Rc::into_raw(_slot2.clone()) as usize,
             );
         }
     }
@@ -168,7 +168,7 @@ pub fn cteSwap(
                     .borrow()
                     .cteMDBNode
                     .clone(),
-                Rc::into_raw(_slot1.clone()) as u64,
+                Rc::into_raw(_slot1.clone()) as usize,
             );
         }
         let next_ptr = mdb_node_get_mdbNext(mdb2.clone());
@@ -178,7 +178,7 @@ pub fn cteSwap(
                     .borrow()
                     .cteMDBNode
                     .clone(),
-                Rc::into_raw(_slot1.clone()) as u64,
+                Rc::into_raw(_slot1.clone()) as usize,
             );
         }
     }
@@ -230,7 +230,7 @@ fn isMDBParentOf(cte1: Rc<RefCell<cte_t>>, cte2: Rc<RefCell<cte_t>>) -> bool {
     }
     match cap_get_capType(cte1.borrow().cap.clone()) {
         cap_endpoint_cap => {
-            let badge: u64;
+            let badge: usize;
             badge = cap_endpoint_cap_get_capEPBadge(cte1.borrow().cap.clone());
             if badge == 0 {
                 return true;
@@ -359,7 +359,7 @@ pub fn reduceZombie(slot: Rc<RefCell<cte_t>>, immediate: bool) -> exception_t {
             //cte_t *endSlot = &ptr[n - 1];
             let endSlot = Rc::from_raw(
                 (cap_zombie_cap_get_capZombiePtr(slot.borrow().cap.clone())
-                    + (n - 1) * size_of::<Rc<RefCell<cte_t>>>() as u64)
+                    + (n - 1) * size_of::<Rc<RefCell<cte_t>>>() as usize)
                     as *const RefCell<cte_t>,
             );
             status = cteDelete(endSlot.clone(), false);
@@ -456,17 +456,17 @@ pub fn insertNewCap(
         let mut slot = _slot.borrow_mut();
         slot.cap = cap;
         slot.cteMDBNode =
-            mdb_node_new(next as u64, 1u64, 1u64, Rc::into_raw(parent.clone()) as u64);
+            mdb_node_new(next as usize, 1usize, 1usize, Rc::into_raw(parent.clone()) as usize);
         if next != 0 {
             let next_ptr = Rc::from_raw(next as *const RefCell<cte_t>);
             mdb_node_ptr_set_mdbPrev(
                 next_ptr.borrow().cteMDBNode.clone(),
-                Rc::into_raw(_slot.clone()) as u64,
+                Rc::into_raw(_slot.clone()) as usize,
             );
         }
         mdb_node_ptr_set_mdbNext(
             parent.borrow().cteMDBNode.clone(),
-            Rc::into_raw(_slot.clone()) as u64,
+            Rc::into_raw(_slot.clone()) as usize,
         );
     }
 }
@@ -526,6 +526,6 @@ pub fn invokeCNodeRevoke(destSlot: Rc<RefCell<cte_t>>) -> exception_t {
     cteRevoke(destSlot.clone())
 }
 
-// pub fn decodeCNodeInvocation(invLabel: u64, length: u64, cap: Rc<RefCell<cap_t>>, buffer: u64) {
+// pub fn decodeCNodeInvocation(invLabel: usize, length: usize, cap: Rc<RefCell<cap_t>>, buffer: usize) {
 //     let mut lu_ret = lookupSlot_ret_t::default();
 // }

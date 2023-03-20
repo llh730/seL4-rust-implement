@@ -1,5 +1,6 @@
 extern crate alloc;
 
+use crate::{MASK, BIT};
 use crate::kernel::object::{objecttype::*, structures::*};
 use alloc::rc::Rc;
 use core::default::Default;
@@ -8,7 +9,7 @@ use core::{cell::RefCell, intrinsics::unlikely};
 
 use super::structures::{cap_t, cte_t, exception_t};
 
-pub const wordRadix:u64=6;
+pub const wordRadix:usize=6;
 
 
 #[derive(PartialEq)]
@@ -76,7 +77,7 @@ impl Default for lookupSlot_ret_t {
 pub struct resolveAddressBits_ret_t {
     status: exception_t,
     slot: Option<Rc<RefCell<cte_t>>>,
-    bitsRemaining: u64,
+    bitsRemaining: usize,
 }
 
 impl Default for resolveAddressBits_ret_t {
@@ -91,18 +92,18 @@ impl Default for resolveAddressBits_ret_t {
 
 pub fn resolveAddressBits(
     _nodeCap: Rc<RefCell<cap_t>>,
-    capptr: u64,
-    mut n_bits: u64,
+    capptr: usize,
+    mut n_bits: usize,
 ) -> resolveAddressBits_ret_t {
     let mut nodeCap=Rc::new(RefCell::new(cap_t { words: [_nodeCap.borrow().words[0],_nodeCap.borrow().words[1]] }));
     let mut ret = resolveAddressBits_ret_t::default();
     ret.bitsRemaining = n_bits;
-    let mut radixBits: u64;
-    let mut guardBits: u64;
-    let mut guard: u64;
-    let mut levelBits: u64;
-    let mut capGuard: u64;
-    let mut offset: u64;
+    let mut radixBits: usize;
+    let mut guardBits: usize;
+    let mut guard: usize;
+    let mut levelBits: usize;
+    let mut capGuard: usize;
+    let mut offset: usize;
     let mut slot:Rc<RefCell<cte_t>>;
     if unlikely(cap_get_capType(nodeCap.clone()) != cap_cnode_cap) {
         ret.status = exception_t::EXCEPTION_LOOKUP_FAULT;
@@ -115,7 +116,7 @@ pub fn resolveAddressBits(
         levelBits = radixBits + guardBits;
         assert!(levelBits != 0);
         capGuard = cap_cnode_cap_get_capCNodeGuard(nodeCap.clone());
-        guard = (capptr >> ((n_bits - guardBits) & MASK(wordRadix))) & MASK(guardBits);
+        guard = (capptr >> ((n_bits - guardBits) & MASK!(wordRadix))) & MASK!(guardBits);
 
         if unlikely(guardBits > n_bits || guard != capGuard) {
             ret.status = exception_t::EXCEPTION_LOOKUP_FAULT;
@@ -126,7 +127,7 @@ pub fn resolveAddressBits(
             ret.status =  exception_t::EXCEPTION_LOOKUP_FAULT;
             return ret;
         }
-        offset = (capptr >> (n_bits - levelBits)) & MASK(radixBits);
+        offset = (capptr >> (n_bits - levelBits)) & MASK!(radixBits);
         unsafe {
             slot = Rc::from_raw(
                 ((cap_cnode_cap_get_capCNodePtr(nodeCap.clone())) + offset)
@@ -153,9 +154,9 @@ pub fn resolveAddressBits(
 }
 
 
-pub fn lookupSlotFroCNodeOp(_isSource:bool,root:Rc<RefCell<cap_t>>,capptr:u64,depth:u64)->lookupSlot_ret_t{
+pub fn lookupSlotFroCNodeOp(_isSource:bool,root:Rc<RefCell<cap_t>>,capptr:usize,depth:usize)->lookupSlot_ret_t{
     let mut ret:lookupSlot_ret_t=lookupSlot_ret_t::default();
-    let wordBits=BIT(wordRadix);
+    let wordBits=BIT!(wordRadix);
     if unlikely(cap_get_capType(root.clone()) != cap_cnode_cap) {
         ret.status = exception_t::EXCEPTION_SYSCALL_ERROR;
         return ret;
