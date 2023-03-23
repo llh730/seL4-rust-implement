@@ -1,7 +1,5 @@
 use core::cell::RefCell;
 
-use alloc::rc::Rc;
-
 use crate::{
     config::{
         seL4_ASIDPoolBits, seL4_PageBits, seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits,
@@ -13,7 +11,8 @@ use crate::{
 
 use super::{
     object::structures::{
-        cap_t, cte_t, mdb_node_set_mdbFirstBadged, mdb_node_set_mdbRevocable, mdb_node_t, cap_cnode_cap_new,
+        cap_cnode_cap_new, cap_t, cte_t, mdb_node_set_mdbFirstBadged, mdb_node_set_mdbRevocable,
+        mdb_node_t,
     },
     vspace::{arch_get_n_paging, paddr_to_pptr, pptr_to_paddr},
 };
@@ -313,16 +312,19 @@ pub fn create_rootserver_objects(start: usize, it_v_reg: v_region_t, extra_bi_si
     }
 }
 
-pub fn write_slot(slot_ptr: Rc<RefCell<cte_t>>, cap: Rc<RefCell<cap_t>>) {
-    slot_ptr.borrow_mut().cap = cap.clone();
-    slot_ptr.borrow_mut().cteMDBNode = Rc::new(RefCell::new(mdb_node_t::default()));
-    slot_ptr.borrow_mut().cteMDBNode =
-        mdb_node_set_mdbRevocable(slot_ptr.borrow().cteMDBNode.clone(), 1);
-    slot_ptr.borrow_mut().cteMDBNode =
-        mdb_node_set_mdbFirstBadged(slot_ptr.borrow().cteMDBNode.clone(), 1);
+pub fn write_slot(_slot_ptr: *const cte_t, cap: *const cap_t) {
+    unsafe {
+        let slot_ptr = _slot_ptr as *mut cte_t;
+        (*slot_ptr).cap = cap as *mut cap_t;
+        *(*slot_ptr).cteMDBNode = mdb_node_t::default();
+        (*slot_ptr).cteMDBNode =
+            mdb_node_set_mdbRevocable((*slot_ptr).cteMDBNode, 1) as *mut mdb_node_t;
+        (*slot_ptr).cteMDBNode =
+            mdb_node_set_mdbFirstBadged((*slot_ptr).cteMDBNode, 1) as *mut mdb_node_t;
+    }
 }
 
-pub fn create_root_cnode() -> Rc<RefCell<cap_t>> {
+pub fn create_root_cnode() -> *const cap_t {
     unsafe {
         let cap = cap_cnode_cap_new(
             CONFIG_ROOT_CNODE_SIZE_BITS,
@@ -332,7 +334,6 @@ pub fn create_root_cnode() -> Rc<RefCell<cap_t>> {
         );
         cap
         //FIXEME :: HOW to use insert the cap slot???
-        // write_slot(,cap.clone());
+        // write_slot(,(*cap));
     }
 }
-

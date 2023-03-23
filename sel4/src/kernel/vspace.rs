@@ -1,7 +1,6 @@
 use core::arch::asm;
 use core::cell::RefCell;
 
-use alloc::rc::Rc;
 use riscv::register::satp;
 
 use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
@@ -237,10 +236,10 @@ pub fn pt_init() {
     activate_kernel_vspace();
 }
 
-pub fn map_it_pt_cap(_vspace_cap: Rc<RefCell<cap_t>>, _pt_cap: Rc<RefCell<cap_t>>) {
-    let vptr = cap_page_table_cap_get_capPTMappedAddress(_pt_cap.clone());
-    let lvl1pt = cap_get_capPtr(_vspace_cap.clone());
-    let pt: usize = cap_get_capPtr(_pt_cap.clone());
+pub fn map_it_pt_cap(_vspace_cap: *const cap_t, _pt_cap: *const cap_t) {
+    let vptr = cap_page_table_cap_get_capPTMappedAddress(_pt_cap);
+    let lvl1pt = cap_get_capPtr(_vspace_cap);
+    let pt: usize = cap_get_capPtr(_pt_cap);
 
     let pt_ret = lookupPTSlot(lvl1pt, vptr);
 
@@ -262,10 +261,10 @@ pub fn map_it_pt_cap(_vspace_cap: Rc<RefCell<cap_t>>, _pt_cap: Rc<RefCell<cap_t>
     }
 }
 
-pub fn map_it_frame_cap(_vspace_cap: Rc<RefCell<cap_t>>, _frame_cap: Rc<RefCell<cap_t>>) {
-    let vptr = cap_frame_cap_get_capFMappedAddress(_frame_cap.clone());
-    let lvl1pt = cap_get_capPtr(_vspace_cap.clone());
-    let frame_pptr: usize = cap_get_capPtr(_frame_cap.clone());
+pub fn map_it_frame_cap(_vspace_cap: *const cap_t, _frame_cap: *const cap_t) {
+    let vptr = cap_frame_cap_get_capFMappedAddress(_frame_cap);
+    let lvl1pt = cap_get_capPtr(_vspace_cap);
+    let frame_pptr: usize = cap_get_capPtr(_frame_cap);
 
     let pt_ret = lookupPTSlot(lvl1pt, vptr);
 
@@ -318,18 +317,18 @@ pub fn lookupPTSlot(lvl1pt: usize, vptr: vptr_t) -> lookupPTSlot_ret_t {
     ret
 }
 
-pub fn create_unmapped_it_frame_cap(pptr: pptr_t, use_large: bool) -> Rc<RefCell<cap_t>> {
+pub fn create_unmapped_it_frame_cap(pptr: pptr_t, use_large: bool) -> *const cap_t {
     cap_frame_cap_new(0, pptr, 0, 0, 0, 0)
 }
 
 pub fn create_it_pt_cap(
-    vspace_cap: Rc<RefCell<cap_t>>,
+    vspace_cap: *const cap_t,
     pptr: pptr_t,
     vptr: vptr_t,
     asid: usize,
-) -> Rc<RefCell<cap_t>> {
+) -> *const cap_t {
     let cap = cap_page_table_cap_new(asid, pptr, 1, vptr);
-    map_it_pt_cap(vspace_cap.clone(), cap.clone());
+    map_it_pt_cap(vspace_cap, cap);
     return cap;
 }
 
@@ -347,11 +346,11 @@ pub fn copyGlobalMappings(Lvl1pt: usize) {
 
 // }
 
-pub fn write_it_asid_pool(it_ap_cap: Rc<RefCell<cap_t>>, it_lvl1pt_cap: Rc<RefCell<cap_t>>) {
-    let ap = cap_get_capPtr(it_ap_cap.clone());
+pub fn write_it_asid_pool(it_ap_cap: *const cap_t, it_lvl1pt_cap: *const cap_t) {
+    let ap = cap_get_capPtr(it_ap_cap);
     unsafe {
         let ptr = (ap + 8 * IT_ASID) as *mut usize;
-        *ptr = cap_get_capPtr(it_lvl1pt_cap.clone());
+        *ptr = cap_get_capPtr(it_lvl1pt_cap);
         riscvKSASIDTable[IT_ASID >> asidLowBits] = ap;
     }
 }
@@ -444,13 +443,13 @@ pub fn unmapPage(page_size: vm_page_size_t, asid: asid_t, vptr: vptr_t, pptr: pp
 
 pub fn setVMRoot(thread: *mut tcb_t) {
     unsafe {
-        let threadRoot = (*thread).rootCap[tcbVTable].borrow().cap.clone();
-        if cap_get_capType(threadRoot.clone()) != cap_page_table_cap {
+        let threadRoot = (*thread).rootCap[tcbVTable];
+        if cap_get_capType(threadRoot) != cap_page_table_cap {
             setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
             return;
         }
-        let lvl1pt = cap_page_table_cap_get_capPTBasePtr(threadRoot.clone());
-        let asid = cap_page_table_cap_get_capPTMappedASID(threadRoot.clone());
+        let lvl1pt = cap_page_table_cap_get_capPTBasePtr(threadRoot);
+        let asid = cap_page_table_cap_get_capPTMappedASID(threadRoot);
         let find_ret = findVSpaceForASID(asid);
         if find_ret.status != exception_t::EXCEPTION_NONE || find_ret.vspace_root != lvl1pt {
             setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);

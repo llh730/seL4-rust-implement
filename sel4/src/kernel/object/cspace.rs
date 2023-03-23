@@ -1,28 +1,26 @@
 extern crate alloc;
 
-use crate::{MASK, BIT};
 use crate::kernel::object::{objecttype::*, structures::*};
-use alloc::rc::Rc;
+use crate::{BIT, MASK};
 use core::default::Default;
 use core::intrinsics::likely;
 use core::{cell::RefCell, intrinsics::unlikely};
 
 use super::structures::{cap_t, cte_t, exception_t};
 
-pub const wordRadix:usize=6;
-
+pub const wordRadix: usize = 6;
 
 #[derive(PartialEq)]
 pub struct lookupCap_ret_t {
     status: exception_t,
-    cap: Rc<RefCell<cap_t>>,
+    cap: *const cap_t,
 }
 
 impl Default for lookupCap_ret_t {
     fn default() -> Self {
         lookupCap_ret_t {
             status: exception_t::EXCEPTION_NONE,
-            cap: Rc::new(RefCell::new(Default::default())),
+            cap: (&cap_t::default()) as *const cap_t,
         }
     }
 }
@@ -30,16 +28,16 @@ impl Default for lookupCap_ret_t {
 #[derive(PartialEq)]
 pub struct lookupCapAndSlot_ret_t {
     status: exception_t,
-    cap: Rc<RefCell<cap_t>>,
-    slot: Option<Rc<RefCell<cte_t>>>,
+    cap: *const cap_t,
+    slot: *const cte_t,
 }
 
 impl Default for lookupCapAndSlot_ret_t {
     fn default() -> Self {
         lookupCapAndSlot_ret_t {
             status: exception_t::EXCEPTION_NONE,
-            cap: Rc::new(RefCell::new(Default::default())),
-            slot: None,
+            cap: (&cap_t::default()) as *const cap_t,
+            slot: 0 as *const cte_t,
         }
     }
 }
@@ -48,35 +46,35 @@ impl Default for lookupCapAndSlot_ret_t {
 
 pub struct lookupSlot_raw_ret_t {
     status: exception_t,
-    slot: Option<Rc<RefCell<cte_t>>>,
+    slot: *const cte_t,
 }
 
 impl Default for lookupSlot_raw_ret_t {
     fn default() -> Self {
         lookupSlot_raw_ret_t {
             status: exception_t::EXCEPTION_NONE,
-            slot: None,
+            slot: 0 as *const cte_t,
         }
     }
 }
 
 pub struct lookupSlot_ret_t {
     status: exception_t,
-    slot: Option<Rc<RefCell<cte_t>>>,
+    slot: *const cte_t,
 }
 
 impl Default for lookupSlot_ret_t {
     fn default() -> Self {
         lookupSlot_ret_t {
             status: exception_t::EXCEPTION_NONE,
-            slot: None,
+            slot: 0 as *const cte_t,
         }
     }
 }
 
 pub struct resolveAddressBits_ret_t {
     status: exception_t,
-    slot: Option<Rc<RefCell<cte_t>>>,
+    slot: *mut cte_t,
     bitsRemaining: usize,
 }
 
@@ -84,80 +82,82 @@ impl Default for resolveAddressBits_ret_t {
     fn default() -> Self {
         resolveAddressBits_ret_t {
             status: exception_t::EXCEPTION_NONE,
-            slot: None,
+            slot: 0 as *mut cte_t,
             bitsRemaining: 0,
         }
     }
 }
 
 pub fn resolveAddressBits(
-    _nodeCap: Rc<RefCell<cap_t>>,
+    _nodeCap: *const cap_t,
     capptr: usize,
     mut n_bits: usize,
 ) -> resolveAddressBits_ret_t {
-    let mut nodeCap=Rc::new(RefCell::new(cap_t { words: [_nodeCap.borrow().words[0],_nodeCap.borrow().words[1]] }));
-    let mut ret = resolveAddressBits_ret_t::default();
-    ret.bitsRemaining = n_bits;
-    let mut radixBits: usize;
-    let mut guardBits: usize;
-    let mut guard: usize;
-    let mut levelBits: usize;
-    let mut capGuard: usize;
-    let mut offset: usize;
-    let mut slot:Rc<RefCell<cte_t>>;
-    if unlikely(cap_get_capType(nodeCap.clone()) != cap_cnode_cap) {
-        ret.status = exception_t::EXCEPTION_LOOKUP_FAULT;
-        return ret;
-    }
-
-    while true {
-        radixBits = cap_cnode_cap_get_capCNodeRadix(nodeCap.clone());
-        guardBits = cap_cnode_cap_get_capCNodeGuardSize(nodeCap.clone());
-        levelBits = radixBits + guardBits;
-        assert!(levelBits != 0);
-        capGuard = cap_cnode_cap_get_capCNodeGuard(nodeCap.clone());
-        guard = (capptr >> ((n_bits - guardBits) & MASK!(wordRadix))) & MASK!(guardBits);
-
-        if unlikely(guardBits > n_bits || guard != capGuard) {
+    unsafe {
+        let mut nodeCap = _nodeCap as *mut cap_t;
+        let mut ret = resolveAddressBits_ret_t::default();
+        ret.bitsRemaining = n_bits;
+        let mut radixBits: usize;
+        let mut guardBits: usize;
+        let mut guard: usize;
+        let mut levelBits: usize;
+        let mut capGuard: usize;
+        let mut offset: usize;
+        let mut slot: *mut cte_t;
+        if unlikely(cap_get_capType(_nodeCap) != cap_cnode_cap) {
             ret.status = exception_t::EXCEPTION_LOOKUP_FAULT;
             return ret;
         }
 
-        if unlikely(levelBits > n_bits) {
-            ret.status =  exception_t::EXCEPTION_LOOKUP_FAULT;
-            return ret;
-        }
-        offset = (capptr >> (n_bits - levelBits)) & MASK!(radixBits);
-        unsafe {
-            slot = Rc::from_raw(
-                ((cap_cnode_cap_get_capCNodePtr(nodeCap.clone())) + offset)
-                    as *const RefCell<cte_t>,
-            );
-        }
+        while true {
+            radixBits = cap_cnode_cap_get_capCNodeRadix(_nodeCap);
+            guardBits = cap_cnode_cap_get_capCNodeGuardSize(_nodeCap);
+            levelBits = radixBits + guardBits;
+            assert!(levelBits != 0);
+            capGuard = cap_cnode_cap_get_capCNodeGuard(_nodeCap);
+            guard = (capptr >> ((n_bits - guardBits) & MASK!(wordRadix))) & MASK!(guardBits);
 
+            if unlikely(guardBits > n_bits || guard != capGuard) {
+                ret.status = exception_t::EXCEPTION_LOOKUP_FAULT;
+                return ret;
+            }
 
-        if likely(n_bits == levelBits) {
-            ret.slot = Some(slot.clone());
-            ret.bitsRemaining = 0;
-            return ret;
-        }
+            if unlikely(levelBits > n_bits) {
+                ret.status = exception_t::EXCEPTION_LOOKUP_FAULT;
+                return ret;
+            }
+            offset = (capptr >> (n_bits - levelBits)) & MASK!(radixBits);
+            unsafe {
+                slot = ((cap_cnode_cap_get_capCNodePtr(_nodeCap)) + offset) as *mut cte_t;
+            }
 
-        n_bits -= levelBits;
-        nodeCap = slot.borrow().cap.clone();
-        if unlikely(cap_get_capType(nodeCap.clone()) != cap_cnode_cap) {
-            ret.slot = Some(slot.clone());
-            ret.bitsRemaining = n_bits;
-            return ret;
+            if likely(n_bits == levelBits) {
+                ret.slot = slot ;
+                ret.bitsRemaining = 0;
+                return ret;
+            }
+
+            n_bits -= levelBits;
+            nodeCap = (*slot).cap;
+            if unlikely(cap_get_capType(_nodeCap) != cap_cnode_cap) {
+                ret.slot = slot;
+                ret.bitsRemaining = n_bits;
+                return ret;
+            }
         }
+        panic!("UNREACHABLE");
     }
-    panic!("UNREACHABLE");
 }
 
-
-pub fn lookupSlotFroCNodeOp(_isSource:bool,root:Rc<RefCell<cap_t>>,capptr:usize,depth:usize)->lookupSlot_ret_t{
-    let mut ret:lookupSlot_ret_t=lookupSlot_ret_t::default();
-    let wordBits=BIT!(wordRadix);
-    if unlikely(cap_get_capType(root.clone()) != cap_cnode_cap) {
+pub fn lookupSlotFroCNodeOp(
+    _isSource: bool,
+    root: *const cap_t,
+    capptr: usize,
+    depth: usize,
+) -> lookupSlot_ret_t {
+    let mut ret: lookupSlot_ret_t = lookupSlot_ret_t::default();
+    let wordBits = BIT!(wordRadix);
+    if unlikely(cap_get_capType(root) != cap_cnode_cap) {
         ret.status = exception_t::EXCEPTION_SYSCALL_ERROR;
         return ret;
     }
@@ -176,7 +176,7 @@ pub fn lookupSlotFroCNodeOp(_isSource:bool,root:Rc<RefCell<cap_t>>,capptr:usize,
         ret.status = exception_t::EXCEPTION_SYSCALL_ERROR;
         return ret;
     }
-    ret.slot = Some(res_ret.slot.unwrap().clone());
-    ret.status = exception_t:: EXCEPTION_NONE;
+    ret.slot = res_ret.slot;
+    ret.status = exception_t::EXCEPTION_NONE;
     return ret;
 }

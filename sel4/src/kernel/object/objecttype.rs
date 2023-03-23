@@ -1,6 +1,5 @@
 use crate::{kernel::object::structures::*, MASK, config::seL4_SlotBits};
 extern crate alloc;
-use alloc::rc::Rc;
 use core::cell::{RefCell};
 
 //bits
@@ -32,11 +31,11 @@ pub const cap_asid_pool_cap: usize = 13;
 
 
 
-pub fn isCapRevocable(_derivedCap: Rc<RefCell<cap_t>>, _srcCap: Rc<RefCell<cap_t>>) -> bool {
-    if isArchCap(_derivedCap.clone()) {
+pub fn isCapRevocable(_derivedCap: *const cap_t, _srcCap: *const cap_t) -> bool {
+    if isArchCap(_derivedCap) {
         return false;
     }
-    match cap_get_capType(_derivedCap.clone()) {
+    match cap_get_capType(_derivedCap) {
         cap_endpoint_cap => {
             return cap_endpoint_cap_get_capEPBadge(_derivedCap)
                 != cap_endpoint_cap_get_capEPBadge(_srcCap)
@@ -46,25 +45,25 @@ pub fn isCapRevocable(_derivedCap: Rc<RefCell<cap_t>>, _srcCap: Rc<RefCell<cap_t
     }
 }
 
-pub fn cap_get_capPtr(cap: Rc<RefCell<cap_t>>) -> usize {
-    match cap_get_capType(cap.clone()) {
-        cap_untyped_cap => return cap_untyped_cap_get_capPtr(cap.clone()),
-        cap_endpoint_cap => return cap_endpoint_cap_get_capEPPtr(cap.clone()),
+pub fn cap_get_capPtr(cap: *const cap_t) -> usize {
+    match cap_get_capType(cap) {
+        cap_untyped_cap => return cap_untyped_cap_get_capPtr(cap),
+        cap_endpoint_cap => return cap_endpoint_cap_get_capEPPtr(cap),
         cap_notification_cap => return 0,
-        cap_cnode_cap => return cap_cnode_cap_get_capCNodePtr(cap.clone()),
+        cap_cnode_cap => return cap_cnode_cap_get_capCNodePtr(cap),
         cap_page_table_cap => return cap_page_table_cap_get_capPTBasePtr(cap),
         cap_frame_cap=>return cap_frame_cap_get_capFBasePtr(cap),
-        cap_asid_pool_cap=>return cap_asid_pool_cap_get_capASIDPool(cap.clone()),
+        cap_asid_pool_cap=>return cap_asid_pool_cap_get_capASIDPool(cap),
         _ => return 0,
     }
 }
 
-pub fn cap_get_capSizeBits(cap: Rc<RefCell<cap_t>>) -> usize {
-    match cap_get_capType(cap.clone()) {
-        cap_untyped_cap => return cap_untyped_cap_get_capBlockSize(cap.clone()),
+pub fn cap_get_capSizeBits(cap: *const cap_t) -> usize {
+    match cap_get_capType(cap) {
+        cap_untyped_cap => return cap_untyped_cap_get_capBlockSize(cap),
         cap_endpoint_cap => return seL4_EndpointBits,
         cap_notification_cap => return seL4_NotificationBits,
-        cap_cnode_cap => return cap_cnode_cap_get_capCNodeRadix(cap.clone()) + seL4_SlotBits,
+        cap_cnode_cap => return cap_cnode_cap_get_capCNodeRadix(cap) + seL4_SlotBits,
         cap_page_table_cap => return PT_SIZE_BITS,
         cap_null_cap => return 0,
         cap_reply_cap => seL4_ReplyBits,
@@ -72,33 +71,33 @@ pub fn cap_get_capSizeBits(cap: Rc<RefCell<cap_t>>) -> usize {
     }
 }
 
-pub fn sameRegionAs(cap1: Rc<RefCell<cap_t>>, cap2: Rc<RefCell<cap_t>>)->bool {
-    match cap_get_capType(cap1.clone()) {
+pub fn sameRegionAs(cap1: *const cap_t, cap2: *const cap_t)->bool {
+    match cap_get_capType(cap1) {
         cap_untyped_cap => {
-            if cap_get_capIsPhyaical(cap2.clone()) {
-                let aBase = cap_untyped_cap_get_capPtr(cap1.clone());
-                let bBase = cap_get_capPtr(cap2.clone());
+            if cap_get_capIsPhyaical(cap2) {
+                let aBase = cap_untyped_cap_get_capPtr(cap1);
+                let bBase = cap_get_capPtr(cap2);
 
-                let aTop = aBase + MASK!(cap_untyped_cap_get_capBlockSize(cap1.clone()));
-                let bTop = bBase + MASK!(cap_get_capSizeBits(cap2.clone()));
+                let aTop = aBase + MASK!(cap_untyped_cap_get_capBlockSize(cap1));
+                let bTop = bBase + MASK!(cap_get_capSizeBits(cap2));
                 return (aBase <= bBase) && (bTop <= aTop) && (bBase <= bTop);
             }
             
             return false;
         }
         cap_endpoint_cap => {
-            if cap_get_capType(cap2.clone()) == cap_endpoint_cap {
-                return cap_endpoint_cap_get_capEPPtr(cap1.clone())
-                    == cap_endpoint_cap_get_capEPPtr(cap2.clone());
+            if cap_get_capType(cap2) == cap_endpoint_cap {
+                return cap_endpoint_cap_get_capEPPtr(cap1)
+                    == cap_endpoint_cap_get_capEPPtr(cap2);
             }
             return false;
         }
         cap_cnode_cap => {
-            if cap_get_capType(cap2.clone()) == cap_cnode_cap {
-                return (cap_cnode_cap_get_capCNodePtr(cap1.clone())
-                    == cap_cnode_cap_get_capCNodePtr(cap2.clone()))
-                    && (cap_cnode_cap_get_capCNodeRadix(cap1.clone())
-                        == cap_cnode_cap_get_capCNodeRadix(cap2.clone()));
+            if cap_get_capType(cap2) == cap_cnode_cap {
+                return (cap_cnode_cap_get_capCNodePtr(cap1)
+                    == cap_cnode_cap_get_capCNodePtr(cap2))
+                    && (cap_cnode_cap_get_capCNodeRadix(cap1)
+                        == cap_cnode_cap_get_capCNodeRadix(cap2));
             }
             return false;
         }
@@ -108,25 +107,25 @@ pub fn sameRegionAs(cap1: Rc<RefCell<cap_t>>, cap2: Rc<RefCell<cap_t>>)->bool {
     }
 }
 
-pub fn Arch_sameObjectAs(cap_a:Rc<RefCell<cap_t>>,cap_b:Rc<RefCell<cap_t>>)->bool{
+pub fn Arch_sameObjectAs(cap_a:*const cap_t,cap_b:*const cap_t)->bool{
     return false ;
 }
-pub fn sameObjectAs(cap_a:Rc<RefCell<cap_t>>,cap_b:Rc<RefCell<cap_t>>) -> bool {
-    if cap_get_capType(cap_a.clone())==cap_untyped_cap{
+pub fn sameObjectAs(cap_a:*const cap_t,cap_b:*const cap_t) -> bool {
+    if cap_get_capType(cap_a)==cap_untyped_cap{
         return false;
     }
-    if cap_get_capType(cap_a.clone()) == cap_irq_control_cap &&
-        cap_get_capType(cap_b.clone()) == cap_irq_handler_cap {
+    if cap_get_capType(cap_a) == cap_irq_control_cap &&
+        cap_get_capType(cap_b) == cap_irq_handler_cap {
         return false;
     }
-    if isArchCap(cap_a.clone()) && isArchCap(cap_b.clone()) {
-        return Arch_sameObjectAs(cap_a.clone(), cap_b.clone());
+    if isArchCap(cap_a) && isArchCap(cap_b) {
+        return Arch_sameObjectAs(cap_a, cap_b);
     }
-    return sameRegionAs(cap_a.clone(), cap_b.clone());
+    return sameRegionAs(cap_a, cap_b);
 }
 
-fn cap_get_capIsPhyaical(cap: Rc<RefCell<cap_t>>) -> bool {
-    match cap_get_capType(cap.clone()) {
+fn cap_get_capIsPhyaical(cap: *const cap_t) -> bool {
+    match cap_get_capType(cap) {
         cap_untyped_cap => return true,
         cap_endpoint_cap => return true,
         cap_notification_cap => return true,
@@ -136,21 +135,21 @@ fn cap_get_capIsPhyaical(cap: Rc<RefCell<cap_t>>) -> bool {
     }
 }
 
-pub fn Arch_finaliseCap(cap:Rc<RefCell<cap_t>>,_final:bool)->finaliseCap_ret{
+pub fn Arch_finaliseCap(cap:*const cap_t,_final:bool)->finaliseCap_ret{
     let mut fc_ret=finaliseCap_ret::default();
     fc_ret.remainder=cap_null_cap_new();
     fc_ret.cleanupInfo=cap_null_cap_new();
     fc_ret
 }
 
-pub fn finaliseCap(cap:Rc<RefCell<cap_t>>,_final:bool,exposed:bool)->finaliseCap_ret{
+pub fn finaliseCap(cap:*const cap_t,_final:bool,exposed:bool)->finaliseCap_ret{
     let mut fc_ret=finaliseCap_ret::default();
 
-    if isArchCap(cap.clone()){
-        return Arch_finaliseCap(cap.clone(), _final);
+    if isArchCap(cap){
+        return Arch_finaliseCap(cap, _final);
     }
 
-    match cap_get_capType(cap.clone()){
+    match cap_get_capType(cap){
         cap_endpoint_cap=>{
                 if _final{
                     //TODO: cancelALLIPC()
@@ -162,9 +161,9 @@ pub fn finaliseCap(cap:Rc<RefCell<cap_t>>,_final:bool,exposed:bool)->finaliseCap
         cap_cnode_cap=>{
             if _final {
                 //TODO Zombie_new()
-                fc_ret.remainder =Zombie_new(1usize<< cap_cnode_cap_get_capCNodeRadix(cap.clone()),
-                cap_cnode_cap_get_capCNodeRadix(cap.clone()),
-                cap_cnode_cap_get_capCNodePtr(cap.clone()));
+                fc_ret.remainder =Zombie_new(1usize<< cap_cnode_cap_get_capCNodeRadix(cap),
+                cap_cnode_cap_get_capCNodeRadix(cap),
+                cap_cnode_cap_get_capCNodePtr(cap));
                 fc_ret.cleanupInfo = cap_null_cap_new();
                 return fc_ret;
             } else {

@@ -7,7 +7,7 @@ use crate::{
     },
     BIT, MASK,
 };
-use alloc::{rc::Rc, string::String};
+use alloc::string::String;
 use core::{arch::asm, cell::RefCell};
 
 use super::{object::structures::*, vspace::setVMRoot};
@@ -38,7 +38,7 @@ pub struct tcb_t {
     pub tcbSchedPrev: usize,
     pub tcbEPNext: usize,
     pub tcbEPPrev: usize,
-    pub rootCap: [Rc<RefCell<cte_t>>; tcbCNodeEntries],
+    pub rootCap: [*const cap_t; tcbCNodeEntries],
     pub tcbName: String,
 }
 
