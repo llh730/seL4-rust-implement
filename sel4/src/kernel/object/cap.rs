@@ -4,7 +4,7 @@ use alloc::rc::Rc;
 use core::mem::size_of;
 
 use crate::{
-    kernel::object::{cspace::*, objecttype::*, structures::*},
+    kernel::{object::{cspace::*, objecttype::*, structures::*}, thread::tcb_t},
     println,
 };
 

@@ -16,7 +16,12 @@ pub const TCB_CNODE_RADIX: usize = 4;
 pub fn ZombieType_ZombieCNode(n: usize) -> usize {
     return n & MASK!(wordRadix);
 }
-#[derive(Debug, PartialEq)]
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct thread_state_t {
+    words: [usize; 3],
+}
+#[derive(Debug, PartialEq,Copy,Clone)]
 pub struct cap_t {
     pub words: [usize; 2],
 }
@@ -1255,50 +1260,48 @@ pub fn cap_frame_cap_set_capFMappedAddress(
     return Rc::new(RefCell::new(cap));
 }
 
-
 #[inline]
-pub fn pte_ptr_get_ppn(pte_ptr:*const usize)->usize{
-    unsafe{
-        let ret=((*pte_ptr) & 0x3ffffffffffc00usize) >> 10;
+pub fn pte_ptr_get_ppn(pte_ptr: *const usize) -> usize {
+    unsafe {
+        let ret = ((*pte_ptr) & 0x3ffffffffffc00usize) >> 10;
         ret
     }
 }
 #[inline]
-pub fn pte_ptr_get_execute(pte_ptr:*const usize)->usize{
-    unsafe{
-        let ret=((*pte_ptr) & 0x8usize) >> 3;
-        ret
-    }
-}
-
-#[inline]
-pub fn pte_ptr_get_write(pte_ptr:*const usize)->usize{
-    unsafe{
-        let ret=((*pte_ptr) & 0x4usize) >> 2;
+pub fn pte_ptr_get_execute(pte_ptr: *const usize) -> usize {
+    unsafe {
+        let ret = ((*pte_ptr) & 0x8usize) >> 3;
         ret
     }
 }
 
 #[inline]
-pub fn pte_ptr_get_read(pte_ptr:*const usize)->usize{
-    unsafe{
-        let ret=((*pte_ptr) & 0x2usize) >> 1;
+pub fn pte_ptr_get_write(pte_ptr: *const usize) -> usize {
+    unsafe {
+        let ret = ((*pte_ptr) & 0x4usize) >> 2;
         ret
     }
 }
 
 #[inline]
-pub fn pte_ptr_get_valid(pte_ptr:*const usize)->usize{
-    unsafe{
-        let  ret=((*pte_ptr) & 0x1usize) >> 0;
+pub fn pte_ptr_get_read(pte_ptr: *const usize) -> usize {
+    unsafe {
+        let ret = ((*pte_ptr) & 0x2usize) >> 1;
         ret
     }
 }
 
+#[inline]
+pub fn pte_ptr_get_valid(pte_ptr: *const usize) -> usize {
+    unsafe {
+        let ret = ((*pte_ptr) & 0x1usize) >> 0;
+        ret
+    }
+}
 
 #[inline]
-pub fn cap_asid_cap_new(capASIDBase:usize,capASIDPool:usize)->Rc<RefCell<cap_t>>{
-    let mut cap=cap_t::default();
+pub fn cap_asid_cap_new(capASIDBase: usize, capASIDPool: usize) -> Rc<RefCell<cap_t>> {
+    let mut cap = cap_t::default();
     cap.words[0] = 0
         | (cap_asid_pool_cap & 0x1fusize) << 59
         | (capASIDBase & 0xffffusize) << 43
@@ -1308,13 +1311,128 @@ pub fn cap_asid_cap_new(capASIDBase:usize,capASIDPool:usize)->Rc<RefCell<cap_t>>
 }
 
 #[inline]
-pub fn cap_asid_pool_cap_get_capASIDBase(cap:Rc<RefCell<cap_t>>)->usize{
+pub fn cap_asid_pool_cap_get_capASIDBase(cap: Rc<RefCell<cap_t>>) -> usize {
     let ret = (cap.borrow().words[0].clone() & 0x7fff80000000000usize) >> 43;
     ret
 }
 
 #[inline]
-pub fn cap_asid_pool_cap_get_capASIDPool(cap:Rc<RefCell<cap_t>>)->usize{
-    let ret = (cap.borrow().words[0].clone() & 0x1fffffffffusize)<<2;
+pub fn cap_asid_pool_cap_get_capASIDPool(cap: Rc<RefCell<cap_t>>) -> usize {
+    let ret = (cap.borrow().words[0].clone() & 0x1fffffffffusize) << 2;
     ret
+}
+
+#[inline]
+pub fn thread_state_get_blockingIPCBadge(thread_state_ptr: *const thread_state_t) -> usize {
+    unsafe {
+        let ret = (*thread_state_ptr).words[2] & 0xffffffffffffffffusize;
+        ret
+    }
+}
+
+#[inline]
+pub fn thread_state_set_blockingIPCBadge(thread_state_ptr: *mut thread_state_t, v64: usize) {
+    unsafe {
+        (*thread_state_ptr).words[2] &= !0xffffffffffffffffusize;
+        (*thread_state_ptr).words[2] |= v64 & 0xffffffffffffffffusize;
+    }
+}
+
+#[inline]
+pub fn thread_state_get_blockingIPCCanGrant(thread_state_ptr: *const thread_state_t) -> usize {
+    unsafe {
+        let ret = ((*thread_state_ptr).words[1] & 0x8usize) >> 3;
+        ret
+    }
+}
+
+#[inline]
+pub fn thread_state_set_blockingIPCCanGrant(thread_state_ptr: *mut thread_state_t, v64: usize) {
+    unsafe {
+        (*thread_state_ptr).words[1] &= !0x8usize;
+        (*thread_state_ptr).words[1] |= (v64 << 3) & 0x8usize;
+    }
+}
+
+#[inline]
+pub fn thread_state_get_blockingIPCCanGrantReply(thread_state_ptr: *const thread_state_t) -> usize {
+    unsafe {
+        let ret = ((*thread_state_ptr).words[1] & 0x4usize) >> 2;
+        ret
+    }
+}
+
+#[inline]
+pub fn thread_state_set_blockingIPCCanGrantReply(
+    thread_state_ptr: *mut thread_state_t,
+    v64: usize,
+) {
+    unsafe {
+        (*thread_state_ptr).words[1] &= !0x4usize;
+        (*thread_state_ptr).words[1] |= (v64 << 2) & 0x4usize;
+    }
+}
+
+#[inline]
+pub fn thread_state_get_blockingIPCIsCall(thread_state_ptr: *const thread_state_t) -> usize {
+    unsafe {
+        let ret = ((*thread_state_ptr).words[1] & 0x2usize) >> 1;
+        ret
+    }
+}
+
+#[inline]
+pub fn thread_state_set_blockingIPCIsCall(thread_state_ptr: *mut thread_state_t, v64: usize) {
+    unsafe {
+        (*thread_state_ptr).words[1] &= !0x2usize;
+        (*thread_state_ptr).words[1] |= (v64 << 1) & 0x2usize;
+    }
+}
+
+#[inline]
+pub fn thread_state_get_tcbQueued(thread_state_ptr: *const thread_state_t) -> usize {
+    unsafe {
+        let ret = ((*thread_state_ptr).words[1] & 0x2usize) >> 0;
+        ret
+    }
+}
+
+#[inline]
+pub fn thread_state_set_tcbQueued(thread_state_ptr: *mut thread_state_t, v64: usize) {
+    unsafe {
+        (*thread_state_ptr).words[1] &= !0x1usize;
+        (*thread_state_ptr).words[1] |= (v64 << 0) & 0x1usize;
+    }
+}
+
+#[inline]
+pub fn thread_state_get_blockingObject(thread_state_ptr: *const thread_state_t) -> usize {
+    unsafe {
+        let ret = ((*thread_state_ptr).words[0] & 0x7ffffffff0usize) << 0;
+        ret
+    }
+}
+
+#[inline]
+pub fn thread_state_set_blockingObject(thread_state_ptr: *mut thread_state_t, v64: usize) {
+    unsafe {
+        (*thread_state_ptr).words[0] &= !0x7ffffffff0usize;
+        (*thread_state_ptr).words[0] |= (v64 >> 0) & 0x7ffffffff0usize;
+    }
+}
+
+#[inline]
+pub fn thread_state_get_tsType(thread_state_ptr: *const thread_state_t) -> usize {
+    unsafe {
+        let ret = (*thread_state_ptr).words[0] & 0xfusize;
+        ret
+    }
+}
+
+#[inline]
+pub fn thread_state_set_tsType(thread_state_ptr: *mut thread_state_t, v64: usize) {
+    unsafe {
+        (*thread_state_ptr).words[0] &= !0xfusize;
+        (*thread_state_ptr).words[0] |= (v64 >> 0) & 0xfusize;
+    }
 }

@@ -1,4 +1,4 @@
-use crate::{kernel::object::structures::*, MASK};
+use crate::{kernel::object::structures::*, MASK, config::seL4_SlotBits};
 extern crate alloc;
 use alloc::rc::Rc;
 use core::cell::{RefCell};
@@ -9,7 +9,6 @@ pub const seL4_EndpointBits: usize = 4;
 pub const seL4_NotificationBits: usize = 4;
 pub const seL4_ReplyBits: usize = 4;
 pub const PT_SIZE_BITS: usize = 12;
-pub const seL4_SlotBits: usize = 4;
 
 //cap_tag_t
 pub const cap_null_cap: usize = 0;

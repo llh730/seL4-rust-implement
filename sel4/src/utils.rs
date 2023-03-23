@@ -1,3 +1,5 @@
+use core::mem::size_of;
+
 #[macro_export]
 macro_rules! BIT {
     ($e:expr) => {

@@ -1,5 +1,3 @@
-
-
 use core::arch::asm;
 use core::cell::RefCell;
 
@@ -8,13 +6,16 @@ use riscv::register::satp;
 
 use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
 
+use super::boot::{get_n_paging, v_region_t};
 use super::object::structures::{
-    cap_capType_equals, cap_frame_cap_get_capFMappedAddress, cap_frame_cap_new,
+    cap_capType_equals, cap_frame_cap_get_capFMappedAddress, cap_frame_cap_new, cap_get_capType,
+    cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTMappedASID,
     cap_page_table_cap_get_capPTMappedAddress, cap_page_table_cap_new, cap_t, exception_t,
     pte_ptr_get_execute, pte_ptr_get_ppn, pte_ptr_get_read, pte_ptr_get_valid, pte_ptr_get_write,
 };
 
 use super::object::objecttype::*;
+use super::thread::tcb_t;
 
 type pptr_t = usize;
 type paddr_t = usize;
@@ -57,6 +58,10 @@ pub struct findVSpaceForASID_ret {
     pub vspace_root: pte_t,
 }
 
+static mut kernel_text2_pageTable: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
+
+static mut kernel_text_pageTable: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
+
 static mut kernel_root_pageTable: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
 
 static mut kernel_image_level2_pt: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
@@ -94,10 +99,10 @@ pub unsafe fn sfence() {
 
 #[inline]
 #[no_mangle]
-pub fn setVSpaceRoot(addr: paddr_t) {
-    let satp = satp_new(8usize, 0, addr >> 12);
+pub fn setVSpaceRoot(addr: paddr_t, asid: usize) {
+    let satp = satp_new(8usize, asid, addr >> 12);
     unsafe {
-        let mut temp: usize = 1<<13;
+        let mut temp: usize = 1 << 13;
         unsafe {
             satp::write(satp.words);
             sfence();
@@ -164,18 +169,17 @@ fn RISCV_GET_LVL_PGSIZE(n: usize) -> usize {
     BIT!(RISCV_GET_LVL_PGSIZE_BITS(n))
 }
 
-fn kpptr_to_paddr(x: usize) -> paddr_t {
+pub fn kpptr_to_paddr(x: usize) -> paddr_t {
     x - KERNEL_ELF_BASE_OFFSET
 }
-fn pptr_to_paddr(x: usize) -> paddr_t {
+pub fn pptr_to_paddr(x: usize) -> paddr_t {
     x - PPTR_BASE_OFFSET
 }
-fn paddr_to_pptr(x: usize) -> paddr_t {
+pub fn paddr_to_pptr(x: usize) -> paddr_t {
     x + PPTR_BASE_OFFSET
 }
 
 pub fn map_kernel_window() {
-    println!(" in map_kernel_window()");
     let mut pptr = PPTR_BASE;
 
     let mut paddr = PADDR_BASE;
@@ -189,21 +193,16 @@ pub fn map_kernel_window() {
     pptr = ROUND_DOWN!(KERNEL_ELF_BASE, RISCV_GET_LVL_PGSIZE_BITS(0));
     paddr = ROUND_DOWN!(KERNEL_ELF_PADDR_BASE, RISCV_GET_LVL_PGSIZE_BITS(0));
 
-
-    println!("middle ");
     unsafe {
         kernel_root_pageTable[RISCV_GET_PT_INDEX(KERNEL_ELF_PADDR_BASE + PPTR_BASE_OFFSET, 0)] =
-            pte_next(
-                kpptr_to_paddr(kernel_image_level2_pt.as_ptr() as usize),
-                false,
-            );
-        kernel_root_pageTable[RISCV_GET_PT_INDEX(pptr, 0)] = pte_next(
-            kpptr_to_paddr(kernel_image_level2_pt.as_ptr() as usize),
-            false,
-        );
+            pte_next(kernel_image_level2_pt.as_ptr() as usize, false);
+        kernel_root_pageTable[RISCV_GET_PT_INDEX(pptr, 0)] =
+            pte_next(kernel_image_level2_pt.as_ptr() as usize, false);
+        kernel_root_pageTable[RISCV_GET_PT_INDEX(paddr, 0)] =
+            pte_next(kernel_image_level2_pt.as_ptr() as usize, false);
     }
     let mut index = 0;
-    while index<512 {
+    while index < 512 {
         unsafe {
             kernel_image_level2_pt[index] = pte_next(paddr, true);
         }
@@ -211,12 +210,24 @@ pub fn map_kernel_window() {
         pptr += RISCV_GET_LVL_PGSIZE(1);
         paddr += RISCV_GET_LVL_PGSIZE(1);
     }
-    println!("out");
+
+    // extern "C" {
+    //     fn stext();
+    //     fn etext();
+    // }
+    // unsafe {
+    //     let mut text_ptr = stext as usize;
+    //     while text_ptr < etext as usize {
+    //         kernel_root_pageTable[RISCV_GET_PT_INDEX(text_ptr, 0)] =
+    //             pte_next(text_ptr as usize, true);
+    //         text_ptr+=RISCV_GET_LVL_PGSIZE(0);
+    //     }
+    // }
 }
 
 pub fn activate_kernel_vspace() {
     unsafe {
-        setVSpaceRoot(kpptr_to_paddr(kernel_root_pageTable.as_ptr() as usize));
+        setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
         sfence();
     }
 }
@@ -228,7 +239,7 @@ pub fn pt_init() {
 
 pub fn map_it_pt_cap(_vspace_cap: Rc<RefCell<cap_t>>, _pt_cap: Rc<RefCell<cap_t>>) {
     let vptr = cap_page_table_cap_get_capPTMappedAddress(_pt_cap.clone());
-    let lvl1pt= cap_get_capPtr(_vspace_cap.clone());
+    let lvl1pt = cap_get_capPtr(_vspace_cap.clone());
     let pt: usize = cap_get_capPtr(_pt_cap.clone());
 
     let pt_ret = lookupPTSlot(lvl1pt, vptr);
@@ -253,7 +264,7 @@ pub fn map_it_pt_cap(_vspace_cap: Rc<RefCell<cap_t>>, _pt_cap: Rc<RefCell<cap_t>
 
 pub fn map_it_frame_cap(_vspace_cap: Rc<RefCell<cap_t>>, _frame_cap: Rc<RefCell<cap_t>>) {
     let vptr = cap_frame_cap_get_capFMappedAddress(_frame_cap.clone());
-    let lvl1pt= cap_get_capPtr(_vspace_cap.clone());
+    let lvl1pt = cap_get_capPtr(_vspace_cap.clone());
     let frame_pptr: usize = cap_get_capPtr(_frame_cap.clone());
 
     let pt_ret = lookupPTSlot(lvl1pt, vptr);
@@ -418,7 +429,7 @@ pub fn unmapPage(page_size: vm_page_size_t, asid: asid_t, vptr: vptr_t, pptr: pp
         return;
     }
 
-    if !(pte_ptr_get_valid(lu_ret.ptSlot as *const usize)!=0)
+    if !(pte_ptr_get_valid(lu_ret.ptSlot as *const usize) != 0)
         || isPTEPageTable(lu_ret.ptBitsLeft)
         || (pte_ptr_get_ppn(lu_ret.ptSlot as *const usize) << seL4_PageBits) != pptr_to_paddr(pptr)
     {
@@ -430,9 +441,38 @@ pub fn unmapPage(page_size: vm_page_size_t, asid: asid_t, vptr: vptr_t, pptr: pp
         sfence();
     }
 }
+
+pub fn setVMRoot(thread: *mut tcb_t) {
+    unsafe {
+        let threadRoot = (*thread).rootCap[tcbVTable].borrow().cap.clone();
+        if cap_get_capType(threadRoot.clone()) != cap_page_table_cap {
+            setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
+            return;
+        }
+        let lvl1pt = cap_page_table_cap_get_capPTBasePtr(threadRoot.clone());
+        let asid = cap_page_table_cap_get_capPTMappedASID(threadRoot.clone());
+        let find_ret = findVSpaceForASID(asid);
+        if find_ret.status != exception_t::EXCEPTION_NONE || find_ret.vspace_root != lvl1pt {
+            setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
+            return;
+        }
+        setVSpaceRoot(pptr_to_paddr(lvl1pt), asid);
+    }
+}
+
+pub fn arch_get_n_paging(it_v_reg: v_region_t) -> usize {
+    let mut n: usize = 0;
+    let mut i = 0;
+    while i < CONFIG_PT_LEVELS - 1 {
+        n += get_n_paging(it_v_reg, RISCV_GET_LVL_PGSIZE_BITS(i));
+        i += 1;
+    }
+    return n;
+}
+
 // pub fn deleteASID(asid:asid_t,vspace:pte_t){
 //     unsafe{
 //         let poolPtr = riscvKSASIDTable[asid>>asidLowBits];
-//         if poolPtr!=0 && 
+//         if poolPtr!=0 &&
 //     }
 // }

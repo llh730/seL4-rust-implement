@@ -1,4 +1,4 @@
-use crate::{config::*, println};
+use crate::{config::*};
 use crate::trap::TrapContext;
 
 #[repr(align(4096))]
