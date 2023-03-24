@@ -76,6 +76,7 @@ pub const seL4_VSpaceBits: usize = seL4_PML4Bits;
 pub const seL4_TCBBits: usize = 12;
 pub const BI_FRAME_SIZE_BITS: usize = 12;
 pub const seL4_ASIDPoolBits: usize = 12;
+pub const seL4_NumInitialCaps: usize = 14;
 
 pub const seL4_CapNull: usize = 0;
 pub const seL4_CapInitThreadTCB: usize = 1;

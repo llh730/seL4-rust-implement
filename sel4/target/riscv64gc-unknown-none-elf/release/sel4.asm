@@ -124,9 +124,9 @@ Disassembly of section .text:
 80201118: 03 b1 85 00  	ld	sp, 8(a1)
 8020111c: 82 80        	ret
 
-Disassembly of section .text._ZN4sel45tasks13run_next_task17h59614219fb00267cE.llvm.4930189938139763454:
+Disassembly of section .text._ZN4sel45tasks13run_next_task17h1b1964c9a804d163E.llvm.11147085046330256822:
 
-000000008020111e <_ZN4sel45tasks13run_next_task17h59614219fb00267cE.llvm.4930189938139763454>:
+000000008020111e <_ZN4sel45tasks13run_next_task17h1b1964c9a804d163E.llvm.11147085046330256822>:
 8020111e: 39 71        	addi	sp, sp, -64
 80201120: 06 fc        	sd	ra, 56(sp)
 80201122: 22 f8        	sd	s0, 48(sp)
@@ -255,9 +255,9 @@ Disassembly of section .text._ZN4sel45tasks13run_next_task17h59614219fb00267cE.l
 80201274: e7 80 e0 a3  	jalr	-1474(ra)
 80201278: 00 00        	unimp	
 
-Disassembly of section .text._ZN4sel45tasks25exit_current_and_run_next17h9592adb8078c49ebE:
+Disassembly of section .text._ZN4sel45tasks25exit_current_and_run_next17h7182b0dcba0aa63aE:
 
-000000008020127a <_ZN4sel45tasks25exit_current_and_run_next17h9592adb8078c49ebE>:
+000000008020127a <_ZN4sel45tasks25exit_current_and_run_next17h7182b0dcba0aa63aE>:
 8020127a: 01 11        	addi	sp, sp, -32
 8020127c: 06 ec        	sd	ra, 24(sp)
 8020127e: 22 e8        	sd	s0, 16(sp)
@@ -315,9 +315,9 @@ Disassembly of section .text._ZN4sel45tasks25exit_current_and_run_next17h9592adb
 80201300: e7 80 20 9b  	jalr	-1614(ra)
 80201304: 00 00        	unimp	
 
-Disassembly of section .text._ZN4sel46kernel6vspace17map_kernel_window17hd3bb78bfdb120bb7E:
+Disassembly of section .text._ZN4sel46kernel6vspace17map_kernel_window17h77fa3b31719dc57eE:
 
-0000000080201306 <_ZN4sel46kernel6vspace17map_kernel_window17hd3bb78bfdb120bb7E>:
+0000000080201306 <_ZN4sel46kernel6vspace17map_kernel_window17h77fa3b31719dc57eE>:
 80201306: 41 11        	addi	sp, sp, -16
 80201308: 06 e4        	sd	ra, 8(sp)
 8020130a: 22 e0        	sd	s0, 0(sp)
@@ -369,9 +369,9 @@ Disassembly of section .text._ZN4sel46kernel6vspace17map_kernel_window17hd3bb78b
 80201390: 41 01        	addi	sp, sp, 16
 80201392: 82 80        	ret
 
-Disassembly of section .text._ZN4sel46kernel6vspace22activate_kernel_vspace17h884be1606672e7bfE:
+Disassembly of section .text._ZN4sel46kernel6vspace22activate_kernel_vspace17h45e1e4c8e602d25cE:
 
-0000000080201394 <_ZN4sel46kernel6vspace22activate_kernel_vspace17h884be1606672e7bfE>:
+0000000080201394 <_ZN4sel46kernel6vspace22activate_kernel_vspace17h45e1e4c8e602d25cE>:
 80201394: 41 11        	addi	sp, sp, -16
 80201396: 06 e4        	sd	ra, 8(sp)
 80201398: 22 e0        	sd	s0, 0(sp)
@@ -392,9 +392,9 @@ Disassembly of section .text._ZN4sel46kernel6vspace22activate_kernel_vspace17h88
 802013ba: 41 01        	addi	sp, sp, 16
 802013bc: 82 80        	ret
 
-Disassembly of section .text._ZN4core3ptr48drop_in_place$LT$core..str..error..Utf8Error$GT$17hd505411ba893c426E.llvm.5651318199937409631:
+Disassembly of section .text._ZN4core3ptr48drop_in_place$LT$core..str..error..Utf8Error$GT$17h9e31f42c699c2e38E.llvm.10631528657514373714:
 
-00000000802013be <_ZN4core3ptr48drop_in_place$LT$core..str..error..Utf8Error$GT$17hd505411ba893c426E.llvm.5651318199937409631>:
+00000000802013be <_ZN4core3ptr48drop_in_place$LT$core..str..error..Utf8Error$GT$17h9e31f42c699c2e38E.llvm.10631528657514373714>:
 802013be: 41 11        	addi	sp, sp, -16
 802013c0: 06 e4        	sd	ra, 8(sp)
 802013c2: 22 e0        	sd	s0, 0(sp)
@@ -404,9 +404,9 @@ Disassembly of section .text._ZN4core3ptr48drop_in_place$LT$core..str..error..Ut
 802013ca: 41 01        	addi	sp, sp, 16
 802013cc: 82 80        	ret
 
-Disassembly of section .text._ZN4sel47syscall2fs9sys_write17hd987d575adacbf7eE:
+Disassembly of section .text._ZN4sel47syscall2fs9sys_write17hdd3ca81d921860cdE:
 
-00000000802013ce <_ZN4sel47syscall2fs9sys_write17hd987d575adacbf7eE>:
+00000000802013ce <_ZN4sel47syscall2fs9sys_write17hdd3ca81d921860cdE>:
 802013ce: 19 71        	addi	sp, sp, -128
 802013d0: 86 fc        	sd	ra, 120(sp)
 802013d2: a2 f8        	sd	s0, 112(sp)
@@ -429,7 +429,7 @@ Disassembly of section .text._ZN4sel47syscall2fs9sys_write17hd987d575adacbf7eE:
 
 000000008020140a <.LBB1_7>:
 8020140a: 17 15 00 00  	auipc	a0, 1
-8020140e: 13 05 05 06  	addi	a0, a0, 96
+8020140e: 13 05 85 07  	addi	a0, a0, 120
 80201412: 23 30 a4 fa  	sd	a0, -96(s0)
 80201416: 13 05 04 fe  	addi	a0, s0, -32
 8020141a: 23 34 a4 fa  	sd	a0, -88(s0)
@@ -519,9 +519,9 @@ Disassembly of section .text._ZN4sel47syscall2fs9sys_write17hd987d575adacbf7eE:
 802014fe: e7 80 40 7b  	jalr	1972(ra)
 80201502: 00 00        	unimp	
 
-Disassembly of section .text._ZN4core3ptr47drop_in_place$LT$core..cell..BorrowMutError$GT$17h1bc93a363d0d8a6fE.llvm.6402976037796579615:
+Disassembly of section .text._ZN4core3ptr47drop_in_place$LT$core..cell..BorrowMutError$GT$17h1c74932dfe841b87E.llvm.9544791052956948393:
 
-0000000080201504 <_ZN4core3ptr47drop_in_place$LT$core..cell..BorrowMutError$GT$17h1bc93a363d0d8a6fE.llvm.6402976037796579615>:
+0000000080201504 <_ZN4core3ptr47drop_in_place$LT$core..cell..BorrowMutError$GT$17h1c74932dfe841b87E.llvm.9544791052956948393>:
 80201504: 41 11        	addi	sp, sp, -16
 80201506: 06 e4        	sd	ra, 8(sp)
 80201508: 22 e0        	sd	s0, 0(sp)
@@ -531,9 +531,9 @@ Disassembly of section .text._ZN4core3ptr47drop_in_place$LT$core..cell..BorrowMu
 80201510: 41 01        	addi	sp, sp, 16
 80201512: 82 80        	ret
 
-Disassembly of section .text._ZN4sel44trap7context11TrapContext16app_init_context17h3d18bca98100b3dbE:
+Disassembly of section .text._ZN4sel44trap7context11TrapContext16app_init_context17h534600b8bf72dac9E:
 
-0000000080201514 <_ZN4sel44trap7context11TrapContext16app_init_context17h3d18bca98100b3dbE>:
+0000000080201514 <_ZN4sel44trap7context11TrapContext16app_init_context17h534600b8bf72dac9E>:
 80201514: 79 71        	addi	sp, sp, -48
 80201516: 06 f4        	sd	ra, 40(sp)
 80201518: 22 f0        	sd	s0, 32(sp)
@@ -599,9 +599,9 @@ Disassembly of section .text.rust_main:
 802015ba: e7 80 00 07  	jalr	112(ra)
 802015be: 00 00        	unimp	
 
-Disassembly of section .text._ZN4sel46kernel4boot17try_inital_kernel17h2ff3196a874b87d9E:
+Disassembly of section .text._ZN4sel46kernel4boot17try_inital_kernel17hcd5a0f72a134865cE:
 
-00000000802015c0 <_ZN4sel46kernel4boot17try_inital_kernel17h2ff3196a874b87d9E>:
+00000000802015c0 <_ZN4sel46kernel4boot17try_inital_kernel17hcd5a0f72a134865cE>:
 802015c0: 5d 71        	addi	sp, sp, -80
 802015c2: 86 e4        	sd	ra, 72(sp)
 802015c4: a2 e0        	sd	s0, 64(sp)
@@ -635,9 +635,9 @@ Disassembly of section .text._ZN4sel46kernel4boot17try_inital_kernel17h2ff3196a8
 80201622: 61 61        	addi	sp, sp, 80
 80201624: 82 80        	ret
 
-Disassembly of section .text._ZN4sel43sbi8shutdown17haaea5f922bc4b4f8E:
+Disassembly of section .text._ZN4sel43sbi8shutdown17h66331878ed4ddfbbE:
 
-0000000080201626 <_ZN4sel43sbi8shutdown17haaea5f922bc4b4f8E>:
+0000000080201626 <_ZN4sel43sbi8shutdown17h66331878ed4ddfbbE>:
 80201626: 39 71        	addi	sp, sp, -64
 80201628: 06 fc        	sd	ra, 56(sp)
 8020162a: 22 f8        	sd	s0, 48(sp)
@@ -670,9 +670,9 @@ Disassembly of section .text._ZN4sel43sbi8shutdown17haaea5f922bc4b4f8E:
 80201670: e7 80 80 5a  	jalr	1448(ra)
 80201674: 00 00        	unimp	
 
-Disassembly of section .text._ZN4sel47syscall7syscall17ha1ae170e4dfd83c5E:
+Disassembly of section .text._ZN4sel47syscall7syscall17hc24d219189e4a5a1E:
 
-0000000080201676 <_ZN4sel47syscall7syscall17ha1ae170e4dfd83c5E>:
+0000000080201676 <_ZN4sel47syscall7syscall17hc24d219189e4a5a1E>:
 80201676: 1d 71        	addi	sp, sp, -96
 80201678: 86 ec        	sd	ra, 88(sp)
 8020167a: a2 e8        	sd	s0, 80(sp)
@@ -816,9 +816,9 @@ Disassembly of section .text._ZN4sel47syscall7syscall17ha1ae170e4dfd83c5E:
 802017ec: e7 80 c0 42  	jalr	1068(ra)
 802017f0: 00 00        	unimp	
 
-Disassembly of section .text._ZN4sel410heap_alloc9init_heap17h8428ee50a1308ee2E:
+Disassembly of section .text._ZN4sel410heap_alloc9init_heap17h3294eb883f2849c6E:
 
-00000000802017f2 <_ZN4sel410heap_alloc9init_heap17h8428ee50a1308ee2E>:
+00000000802017f2 <_ZN4sel410heap_alloc9init_heap17h3294eb883f2849c6E>:
 802017f2: 01 11        	addi	sp, sp, -32
 802017f4: 06 ec        	sd	ra, 24(sp)
 802017f6: 22 e8        	sd	s0, 16(sp)
@@ -885,9 +885,9 @@ Disassembly of section .text._ZN5riscv8register6scause6Scause5cause17h6eb740bd40
 80201896: 05 61        	addi	sp, sp, 32
 80201898: 82 80        	ret
 
-Disassembly of section .text._ZN4sel44trap4init17hf4cd2316f04c9c17E:
+Disassembly of section .text._ZN4sel44trap4init17hc786936662feda75E:
 
-000000008020189a <_ZN4sel44trap4init17hf4cd2316f04c9c17E>:
+000000008020189a <_ZN4sel44trap4init17hc786936662feda75E>:
 8020189a: 41 11        	addi	sp, sp, -16
 8020189c: 06 e4        	sd	ra, 8(sp)
 8020189e: 22 e0        	sd	s0, 0(sp)
@@ -902,9 +902,9 @@ Disassembly of section .text._ZN4sel44trap4init17hf4cd2316f04c9c17E:
 802018b2: 41 01        	addi	sp, sp, 16
 802018b4: 82 80        	ret
 
-Disassembly of section .text._ZN4sel44trap22enable_timer_interrupt17h3a95a464ee6fd31eE:
+Disassembly of section .text._ZN4sel44trap22enable_timer_interrupt17hf1078d39c670b34aE:
 
-00000000802018b6 <_ZN4sel44trap22enable_timer_interrupt17h3a95a464ee6fd31eE>:
+00000000802018b6 <_ZN4sel44trap22enable_timer_interrupt17hf1078d39c670b34aE>:
 802018b6: 41 11        	addi	sp, sp, -16
 802018b8: 06 e4        	sd	ra, 8(sp)
 802018ba: 22 e0        	sd	s0, 0(sp)
@@ -1130,9 +1130,9 @@ Disassembly of section .text.trap_handler:
 80201b18: e7 80 00 10  	jalr	256(ra)
 80201b1c: 00 00        	unimp	
 
-Disassembly of section .text._ZN4core3ptr37drop_in_place$LT$core..fmt..Error$GT$17h6cecd2ffc3a7bfbaE.llvm.11125078288461762053:
+Disassembly of section .text._ZN4core3ptr37drop_in_place$LT$core..fmt..Error$GT$17h8a07bd9b64186cfeE.llvm.17772250532125793796:
 
-0000000080201b1e <_ZN4core3ptr54drop_in_place$LT$$RF$mut$u20$sel4..console..Stdout$GT$17h0d01cc34d905f808E.llvm.11125078288461762053>:
+0000000080201b1e <_ZN4core3ptr54drop_in_place$LT$$RF$mut$u20$sel4..console..Stdout$GT$17he26c29928d3f96b5E.llvm.17772250532125793796>:
 80201b1e: 41 11        	addi	sp, sp, -16
 80201b20: 06 e4        	sd	ra, 8(sp)
 80201b22: 22 e0        	sd	s0, 0(sp)
@@ -1142,9 +1142,9 @@ Disassembly of section .text._ZN4core3ptr37drop_in_place$LT$core..fmt..Error$GT$
 80201b2a: 41 01        	addi	sp, sp, 16
 80201b2c: 82 80        	ret
 
-Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053:
+Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796:
 
-0000000080201b2e <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053>:
+0000000080201b2e <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796>:
 80201b2e: 01 11        	addi	sp, sp, -32
 80201b30: 06 ec        	sd	ra, 24(sp)
 80201b32: 22 e8        	sd	s0, 16(sp)
@@ -1152,12 +1152,12 @@ Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write
 80201b36: 1b 85 05 00  	sext.w	a0, a1
 80201b3a: 13 06 00 08  	li	a2, 128
 80201b3e: 23 26 04 fe  	sw	zero, -20(s0)
-80201b42: 63 76 c5 00  	bgeu	a0, a2, 0x80201b4e <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0x20>
+80201b42: 63 76 c5 00  	bgeu	a0, a2, 0x80201b4e <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0x20>
 80201b46: 23 06 b4 fe  	sb	a1, -20(s0)
 80201b4a: 05 45        	li	a0, 1
-80201b4c: 51 a8        	j	0x80201be0 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0xb2>
+80201b4c: 51 a8        	j	0x80201be0 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0xb2>
 80201b4e: 1b d5 b5 00  	srliw	a0, a1, 11
-80201b52: 19 ed        	bnez	a0, 0x80201b70 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0x42>
+80201b52: 19 ed        	bnez	a0, 0x80201b70 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0x42>
 80201b54: 13 d5 65 00  	srli	a0, a1, 6
 80201b58: 13 65 05 0c  	ori	a0, a0, 192
 80201b5c: 23 06 a4 fe  	sb	a0, -20(s0)
@@ -1165,9 +1165,9 @@ Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write
 80201b64: 13 65 05 08  	ori	a0, a0, 128
 80201b68: a3 06 a4 fe  	sb	a0, -19(s0)
 80201b6c: 09 45        	li	a0, 2
-80201b6e: 8d a8        	j	0x80201be0 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0xb2>
+80201b6e: 8d a8        	j	0x80201be0 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0xb2>
 80201b70: 1b d5 05 01  	srliw	a0, a1, 16
-80201b74: 05 e9        	bnez	a0, 0x80201ba4 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0x76>
+80201b74: 05 e9        	bnez	a0, 0x80201ba4 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0x76>
 80201b76: 13 95 05 02  	slli	a0, a1, 32
 80201b7a: 01 91        	srli	a0, a0, 32
 80201b7c: 1b d6 c5 00  	srliw	a2, a1, 12
@@ -1181,7 +1181,7 @@ Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write
 80201b98: 13 65 05 08  	ori	a0, a0, 128
 80201b9c: 23 07 a4 fe  	sb	a0, -18(s0)
 80201ba0: 0d 45        	li	a0, 3
-80201ba2: 3d a8        	j	0x80201be0 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0xb2>
+80201ba2: 3d a8        	j	0x80201be0 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0xb2>
 80201ba4: 13 95 05 02  	slli	a0, a1, 32
 80201ba8: 01 91        	srli	a0, a0, 32
 80201baa: 13 16 b5 02  	slli	a2, a0, 43
@@ -1206,24 +1206,24 @@ Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write
 80201bec: 13 08 00 0f  	li	a6, 240
 80201bf0: b7 02 11 00  	lui	t0, 272
 80201bf4: 85 48        	li	a7, 1
-80201bf6: 01 a8        	j	0x80201c06 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0xd8>
+80201bf6: 01 a8        	j	0x80201c06 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0xd8>
 80201bf8: 85 06        	addi	a3, a3, 1
 80201bfa: 81 45        	li	a1, 0
 80201bfc: 01 46        	li	a2, 0
 80201bfe: 73 00 00 00  	ecall	
-80201c02: 63 8f e6 04  	beq	a3, a4, 0x80201c60 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0x132>
+80201c02: 63 8f e6 04  	beq	a3, a4, 0x80201c60 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0x132>
 80201c06: 83 85 06 00  	lb	a1, 0(a3)
 80201c0a: 13 f5 f5 0f  	andi	a0, a1, 255
-80201c0e: e3 d5 05 fe  	bgez	a1, 0x80201bf8 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0xca>
+80201c0e: e3 d5 05 fe  	bgez	a1, 0x80201bf8 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0xca>
 80201c12: 03 c6 16 00  	lbu	a2, 1(a3)
 80201c16: 93 75 f5 01  	andi	a1, a0, 31
 80201c1a: 13 76 f6 03  	andi	a2, a2, 63
-80201c1e: 63 77 a3 02  	bgeu	t1, a0, 0x80201c4c <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0x11e>
+80201c1e: 63 77 a3 02  	bgeu	t1, a0, 0x80201c4c <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0x11e>
 80201c22: 83 c7 26 00  	lbu	a5, 2(a3)
 80201c26: 1a 06        	slli	a2, a2, 6
 80201c28: 93 f7 f7 03  	andi	a5, a5, 63
 80201c2c: 5d 8e        	or	a2, a2, a5
-80201c2e: 63 64 05 03  	bltu	a0, a6, 0x80201c56 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0x128>
+80201c2e: 63 64 05 03  	bltu	a0, a6, 0x80201c56 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0x128>
 80201c32: 03 c5 36 00  	lbu	a0, 3(a3)
 80201c36: f6 15        	slli	a1, a1, 61
 80201c38: ad 91        	srli	a1, a1, 43
@@ -1231,26 +1231,26 @@ Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write
 80201c3c: 13 75 f5 03  	andi	a0, a0, 63
 80201c40: 51 8d        	or	a0, a0, a2
 80201c42: 4d 8d        	or	a0, a0, a1
-80201c44: 63 0e 55 00  	beq	a0, t0, 0x80201c60 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0x132>
+80201c44: 63 0e 55 00  	beq	a0, t0, 0x80201c60 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0x132>
 80201c48: 91 06        	addi	a3, a3, 4
-80201c4a: 45 bf        	j	0x80201bfa <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0xcc>
+80201c4a: 45 bf        	j	0x80201bfa <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0xcc>
 80201c4c: 89 06        	addi	a3, a3, 2
 80201c4e: 13 95 65 00  	slli	a0, a1, 6
 80201c52: 51 8d        	or	a0, a0, a2
-80201c54: 5d b7        	j	0x80201bfa <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0xcc>
+80201c54: 5d b7        	j	0x80201bfa <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0xcc>
 80201c56: 8d 06        	addi	a3, a3, 3
 80201c58: 13 95 c5 00  	slli	a0, a1, 12
 80201c5c: 51 8d        	or	a0, a0, a2
-80201c5e: 71 bf        	j	0x80201bfa <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h779ce557c9c2e251E.llvm.11125078288461762053+0xcc>
+80201c5e: 71 bf        	j	0x80201bfa <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17hf0d505868795947eE.llvm.17772250532125793796+0xcc>
 80201c60: 01 45        	li	a0, 0
 80201c62: e2 60        	ld	ra, 24(sp)
 80201c64: 42 64        	ld	s0, 16(sp)
 80201c66: 05 61        	addi	sp, sp, 32
 80201c68: 82 80        	ret
 
-Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_fmt17h56cd00ca9e5b75a9E.llvm.11125078288461762053:
+Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_fmt17hea6da6f03dcdd814E.llvm.17772250532125793796:
 
-0000000080201c6a <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_fmt17h56cd00ca9e5b75a9E.llvm.11125078288461762053>:
+0000000080201c6a <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_fmt17hea6da6f03dcdd814E.llvm.17772250532125793796>:
 80201c6a: 5d 71        	addi	sp, sp, -80
 80201c6c: 86 e4        	sd	ra, 72(sp)
 80201c6e: a2 e0        	sd	s0, 64(sp)
@@ -1282,38 +1282,38 @@ Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write
 80201cb8: 61 61        	addi	sp, sp, 80
 80201cba: 82 80        	ret
 
-Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053:
+Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796:
 
-0000000080201cbc <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053>:
+0000000080201cbc <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796>:
 80201cbc: 41 11        	addi	sp, sp, -16
 80201cbe: 06 e4        	sd	ra, 8(sp)
 80201cc0: 22 e0        	sd	s0, 0(sp)
 80201cc2: 00 08        	addi	s0, sp, 16
-80201cc4: 41 c2        	beqz	a2, 0x80201d44 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x88>
+80201cc4: 41 c2        	beqz	a2, 0x80201d44 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x88>
 80201cc6: ae 86        	mv	a3, a1
 80201cc8: 33 87 c5 00  	add	a4, a1, a2
 80201ccc: 13 03 f0 0d  	li	t1, 223
 80201cd0: 13 08 00 0f  	li	a6, 240
 80201cd4: b7 02 11 00  	lui	t0, 272
 80201cd8: 85 48        	li	a7, 1
-80201cda: 01 a8        	j	0x80201cea <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x2e>
+80201cda: 01 a8        	j	0x80201cea <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x2e>
 80201cdc: 85 06        	addi	a3, a3, 1
 80201cde: 81 45        	li	a1, 0
 80201ce0: 01 46        	li	a2, 0
 80201ce2: 73 00 00 00  	ecall	
-80201ce6: 63 8f e6 04  	beq	a3, a4, 0x80201d44 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x88>
+80201ce6: 63 8f e6 04  	beq	a3, a4, 0x80201d44 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x88>
 80201cea: 83 85 06 00  	lb	a1, 0(a3)
 80201cee: 13 f5 f5 0f  	andi	a0, a1, 255
-80201cf2: e3 d5 05 fe  	bgez	a1, 0x80201cdc <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x20>
+80201cf2: e3 d5 05 fe  	bgez	a1, 0x80201cdc <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x20>
 80201cf6: 03 c6 16 00  	lbu	a2, 1(a3)
 80201cfa: 93 75 f5 01  	andi	a1, a0, 31
 80201cfe: 13 76 f6 03  	andi	a2, a2, 63
-80201d02: 63 77 a3 02  	bgeu	t1, a0, 0x80201d30 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x74>
+80201d02: 63 77 a3 02  	bgeu	t1, a0, 0x80201d30 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x74>
 80201d06: 83 c7 26 00  	lbu	a5, 2(a3)
 80201d0a: 1a 06        	slli	a2, a2, 6
 80201d0c: 93 f7 f7 03  	andi	a5, a5, 63
 80201d10: 5d 8e        	or	a2, a2, a5
-80201d12: 63 64 05 03  	bltu	a0, a6, 0x80201d3a <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x7e>
+80201d12: 63 64 05 03  	bltu	a0, a6, 0x80201d3a <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x7e>
 80201d16: 03 c5 36 00  	lbu	a0, 3(a3)
 80201d1a: f6 15        	slli	a1, a1, 61
 80201d1c: ad 91        	srli	a1, a1, 43
@@ -1321,26 +1321,26 @@ Disassembly of section .text._ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write
 80201d20: 13 75 f5 03  	andi	a0, a0, 63
 80201d24: 51 8d        	or	a0, a0, a2
 80201d26: 4d 8d        	or	a0, a0, a1
-80201d28: 63 0e 55 00  	beq	a0, t0, 0x80201d44 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x88>
+80201d28: 63 0e 55 00  	beq	a0, t0, 0x80201d44 <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x88>
 80201d2c: 91 06        	addi	a3, a3, 4
-80201d2e: 45 bf        	j	0x80201cde <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x22>
+80201d2e: 45 bf        	j	0x80201cde <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x22>
 80201d30: 89 06        	addi	a3, a3, 2
 80201d32: 13 95 65 00  	slli	a0, a1, 6
 80201d36: 51 8d        	or	a0, a0, a2
-80201d38: 5d b7        	j	0x80201cde <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x22>
+80201d38: 5d b7        	j	0x80201cde <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x22>
 80201d3a: 8d 06        	addi	a3, a3, 3
 80201d3c: 13 95 c5 00  	slli	a0, a1, 12
 80201d40: 51 8d        	or	a0, a0, a2
-80201d42: 71 bf        	j	0x80201cde <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hfd191089e198418bE.llvm.11125078288461762053+0x22>
+80201d42: 71 bf        	j	0x80201cde <_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hff577ac6e379d064E.llvm.17772250532125793796+0x22>
 80201d44: 01 45        	li	a0, 0
 80201d46: a2 60        	ld	ra, 8(sp)
 80201d48: 02 64        	ld	s0, 0(sp)
 80201d4a: 41 01        	addi	sp, sp, 16
 80201d4c: 82 80        	ret
 
-Disassembly of section .text._ZN4sel47console5print17h9bfb0cb51ece224bE:
+Disassembly of section .text._ZN4sel47console5print17hac8e0d72989ef035E:
 
-0000000080201d4e <_ZN4sel47console5print17h9bfb0cb51ece224bE>:
+0000000080201d4e <_ZN4sel47console5print17hac8e0d72989ef035E>:
 80201d4e: 5d 71        	addi	sp, sp, -80
 80201d50: 86 e4        	sd	ra, 72(sp)
 80201d52: a2 e0        	sd	s0, 64(sp)
@@ -1446,7 +1446,7 @@ Disassembly of section .text.rust_begin_unwind:
 
 0000000080201e56 <.LBB0_13>:
 80201e56: 17 05 00 00  	auipc	a0, 0
-80201e5a: 13 05 65 63  	addi	a0, a0, 1590
+80201e5a: 13 05 45 61  	addi	a0, a0, 1556
 80201e5e: 23 3c a4 ee  	sd	a0, -264(s0)
 
 0000000080201e62 <.LBB0_14>:
@@ -1513,7 +1513,7 @@ Disassembly of section .text.rust_begin_unwind:
 
 0000000080201f24 <.LBB0_19>:
 80201f24: 17 05 00 00  	auipc	a0, 0
-80201f28: 13 05 65 54  	addi	a0, a0, 1350
+80201f28: 13 05 e5 55  	addi	a0, a0, 1374
 80201f2c: 23 34 a4 f4  	sd	a0, -184(s0)
 80201f30: 13 05 44 f3  	addi	a0, s0, -204
 80201f34: 23 38 a4 f4  	sd	a0, -176(s0)
@@ -1527,7 +1527,7 @@ Disassembly of section .text.rust_begin_unwind:
 
 0000000080201f4c <.LBB0_21>:
 80201f4c: 17 05 00 00  	auipc	a0, 0
-80201f50: 13 05 05 54  	addi	a0, a0, 1344
+80201f50: 13 05 e5 51  	addi	a0, a0, 1310
 80201f54: 23 34 a4 f6  	sd	a0, -152(s0)
 
 0000000080201f58 <.LBB0_22>:
@@ -1601,9 +1601,9 @@ Disassembly of section .text.rust_begin_unwind:
 80202024: e7 80 e0 c8  	jalr	-882(ra)
 80202028: 00 00        	unimp	
 
-Disassembly of section .text._ZN4spin4once13Once$LT$T$GT$9call_once17h9b82f25286b218f2E:
+Disassembly of section .text._ZN4spin4once13Once$LT$T$GT$9call_once17h69331856e0aa39a3E:
 
-000000008020202a <_ZN4spin4once13Once$LT$T$GT$9call_once17h9b82f25286b218f2E>:
+000000008020202a <_ZN4spin4once13Once$LT$T$GT$9call_once17h69331856e0aa39a3E>:
 8020202a: 13 01 01 81  	addi	sp, sp, -2032
 8020202e: 23 34 11 7e  	sd	ra, 2024(sp)
 80202032: 23 30 81 7e  	sd	s0, 2016(sp)
@@ -1628,9 +1628,9 @@ Disassembly of section .text._ZN4spin4once13Once$LT$T$GT$9call_once17h9b82f25286
 8020207c: 63 92 05 2a  	bnez	a1, 0x80202320 <.LBB0_17+0xf4>
 80202080: 05 46        	li	a2, 1
 80202082: af 35 05 16  	lr.d.aqrl	a1, (a0)
-80202086: 81 e5        	bnez	a1, 0x8020208e <_ZN4spin4once13Once$LT$T$GT$9call_once17h9b82f25286b218f2E+0x64>
+80202086: 81 e5        	bnez	a1, 0x8020208e <_ZN4spin4once13Once$LT$T$GT$9call_once17h69331856e0aa39a3E+0x64>
 80202088: af 36 c5 1e  	sc.d.aqrl	a3, a2, (a0)
-8020208c: fd fa        	bnez	a3, 0x80202082 <_ZN4spin4once13Once$LT$T$GT$9call_once17h9b82f25286b218f2E+0x58>
+8020208c: fd fa        	bnez	a3, 0x80202082 <_ZN4spin4once13Once$LT$T$GT$9call_once17h69331856e0aa39a3E+0x58>
 8020208e: 63 99 05 28  	bnez	a1, 0x80202320 <.LBB0_17+0xf4>
 80202092: fd 76        	lui	a3, 1048575
 80202094: 9b 86 06 08  	addiw	a3, a3, 128
@@ -1889,9 +1889,9 @@ Disassembly of section .text._ZN4spin4once13Once$LT$T$GT$9call_once17h9b82f25286
 802023b6: e7 80 00 89  	jalr	-1904(ra)
 802023ba: 00 00        	unimp	
 
-Disassembly of section .text._ZN4sel47syscall7process8sys_exit17hf9bb323ae452d062E:
+Disassembly of section .text._ZN4sel47syscall7process8sys_exit17hfad03a5e0ed4186aE:
 
-00000000802023bc <_ZN4sel47syscall7process8sys_exit17hf9bb323ae452d062E>:
+00000000802023bc <_ZN4sel47syscall7process8sys_exit17hfad03a5e0ed4186aE>:
 802023bc: 1d 71        	addi	sp, sp, -96
 802023be: 86 ec        	sd	ra, 88(sp)
 802023c0: a2 e8        	sd	s0, 80(sp)
@@ -1956,42 +1956,42 @@ Disassembly of section .text._ZN4sel47syscall7process8sys_exit17hf9bb323ae452d06
 80202464: e7 80 40 7b  	jalr	1972(ra)
 80202468: 00 00        	unimp	
 
-Disassembly of section .text._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17h93ba9c4779de4587E:
+Disassembly of section .text._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17hc83fb63968e07dbeE:
 
-000000008020246a <_ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17h93ba9c4779de4587E>:
+000000008020246a <_ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17hc83fb63968e07dbeE>:
 8020246a: 41 11        	addi	sp, sp, -16
 8020246c: 06 e4        	sd	ra, 8(sp)
 8020246e: 22 e0        	sd	s0, 0(sp)
 80202470: 00 08        	addi	s0, sp, 16
-80202472: 10 61        	ld	a2, 0(a0)
-80202474: 14 65        	ld	a3, 8(a0)
-80202476: 2e 87        	mv	a4, a1
-80202478: 32 85        	mv	a0, a2
-8020247a: b6 85        	mv	a1, a3
-8020247c: 3a 86        	mv	a2, a4
-8020247e: a2 60        	ld	ra, 8(sp)
-80202480: 02 64        	ld	s0, 0(sp)
-80202482: 41 01        	addi	sp, sp, 16
-80202484: 17 13 00 00  	auipc	t1, 1
-80202488: 67 00 c3 58  	jr	1420(t1)
+80202472: 08 61        	ld	a0, 0(a0)
+80202474: a2 60        	ld	ra, 8(sp)
+80202476: 02 64        	ld	s0, 0(sp)
+80202478: 41 01        	addi	sp, sp, 16
+8020247a: 17 13 00 00  	auipc	t1, 1
+8020247e: 67 00 83 e6  	jr	-408(t1)
 
-Disassembly of section .text._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17hcae51e2c61eecfb6E:
+Disassembly of section .text._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17he9e9b4aa0ef791bdE:
 
-000000008020248c <_ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17hcae51e2c61eecfb6E>:
-8020248c: 41 11        	addi	sp, sp, -16
-8020248e: 06 e4        	sd	ra, 8(sp)
-80202490: 22 e0        	sd	s0, 0(sp)
-80202492: 00 08        	addi	s0, sp, 16
-80202494: 08 61        	ld	a0, 0(a0)
+0000000080202482 <_ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17he9e9b4aa0ef791bdE>:
+80202482: 41 11        	addi	sp, sp, -16
+80202484: 06 e4        	sd	ra, 8(sp)
+80202486: 22 e0        	sd	s0, 0(sp)
+80202488: 00 08        	addi	s0, sp, 16
+8020248a: 10 61        	ld	a2, 0(a0)
+8020248c: 14 65        	ld	a3, 8(a0)
+8020248e: 2e 87        	mv	a4, a1
+80202490: 32 85        	mv	a0, a2
+80202492: b6 85        	mv	a1, a3
+80202494: 3a 86        	mv	a2, a4
 80202496: a2 60        	ld	ra, 8(sp)
 80202498: 02 64        	ld	s0, 0(sp)
 8020249a: 41 01        	addi	sp, sp, 16
 8020249c: 17 13 00 00  	auipc	t1, 1
-802024a0: 67 00 63 e4  	jr	-442(t1)
+802024a0: 67 00 43 57  	jr	1396(t1)
 
-Disassembly of section .text._ZN4sel46kernel6object10objecttype14cap_get_capPtr17h84e758b4074b329eE:
+Disassembly of section .text._ZN4sel46kernel6object10objecttype14cap_get_capPtr17h66df656170e7b0bcE:
 
-00000000802024a4 <_ZN4sel46kernel6object10objecttype14cap_get_capPtr17h84e758b4074b329eE>:
+00000000802024a4 <_ZN4sel46kernel6object10objecttype14cap_get_capPtr17h66df656170e7b0bcE>:
 802024a4: 41 11        	addi	sp, sp, -16
 802024a6: 06 e4        	sd	ra, 8(sp)
 802024a8: 22 e0        	sd	s0, 0(sp)

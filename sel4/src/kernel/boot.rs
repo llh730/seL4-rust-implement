@@ -2,9 +2,10 @@ use core::{alloc::Layout, arch::asm, cell::RefCell, mem};
 
 use crate::{
     config::{
-        seL4_ASIDPoolBits, seL4_CapDomain, seL4_CapInitThreadCNode, seL4_PageBits,
-        seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits, seL4_VSpaceBits, BI_FRAME_SIZE_BITS,
-        CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG, SIE_SEIE, SIE_STIE,
+        seL4_ASIDPoolBits, seL4_CapDomain, seL4_CapInitThreadCNode, seL4_NumInitialCaps,
+        seL4_PageBits, seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits, seL4_VSpaceBits,
+        BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG,
+        SIE_SEIE, SIE_STIE,
     },
     println, trap, BIT, ROUND_DOWN, ROUND_UP,
 };
@@ -108,7 +109,7 @@ static mut ndks_boot: ndks_boot_t = ndks_boot_t {
     resv_count: 16,
     freemem: [region_t { start: 0, end: 0 }; MAX_NUM_FREEMEM_REG],
     bi_frame: 0 as *const seL4_BootInfo,
-    slot_pos_cur: 0,
+    slot_pos_cur: seL4_NumInitialCaps,
 };
 
 #[inline]
@@ -362,10 +363,30 @@ pub fn set_sie_mask(mask_high: usize) {
         asm!("csrrs {0},sie,{1}",out(reg)temp,in(reg)mask_high);
     }
 }
+
+pub fn provide_cap(root_cnode_cap: *const cap_t, cap: *const cap_t) -> bool {
+    unsafe {
+        if ndks_boot.slot_pos_cur >= BIT!(CONFIG_ROOT_CNODE_SIZE_BITS) {
+            println!(
+                "ERROR: can't add another cap, all {} slots used\n",
+                BIT!(CONFIG_ROOT_CNODE_SIZE_BITS)
+            );
+            return false;
+        }
+        write_slot(
+            (rootserver.cnode + mem::size_of::<cte_t>() * ndks_boot.slot_pos_cur) as *const cte_t,
+            cap,
+        );
+        ndks_boot.slot_pos_cur+=1;
+        true
+    }
+}
+
 pub fn try_inital_kernel() {
     trap::init();
     trap::enable_timer_interrupt();
     set_sie_mask(BIT!(SIE_SEIE) | BIT!(SIE_STIE));
+    // let size=calcaulate_rootserver_size(it_v_reg, extra_bi_size_bits);
     let root_cnode_cap = create_root_cnode();
     create_domain_cap(root_cnode_cap);
 }

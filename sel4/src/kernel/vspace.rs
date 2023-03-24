@@ -6,10 +6,10 @@ use riscv::register::satp;
 
 use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
 
-use super::boot::{get_n_paging, rootserver, v_region_t, write_slot};
+use super::boot::{get_n_paging, it_alloc_paging, provide_cap, rootserver, v_region_t, write_slot};
 use super::object::structures::{
     cap_capType_equals, cap_frame_cap_get_capFMappedAddress, cap_frame_cap_new, cap_get_capType,
-    cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTMappedASID,
+    cap_null_cap_new, cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTMappedASID,
     cap_page_table_cap_get_capPTMappedAddress, cap_page_table_cap_new, cap_t, cte_t, exception_t,
     pte_ptr_get_execute, pte_ptr_get_ppn, pte_ptr_get_read, pte_ptr_get_valid, pte_ptr_get_write,
 };
@@ -92,7 +92,7 @@ pub unsafe fn read_satp() -> usize {
 #[inline]
 #[no_mangle]
 pub unsafe fn sfence() {
-    core::arch::asm!("sfence.vma x0,x0");
+    core::arch::asm!("sfence.vma");
 }
 
 #[inline]
@@ -486,6 +486,12 @@ pub fn create_it_address_space(root_cnode_cap: *const cap_t, it_v_reg: v_region_
             let mut pt_vptr = ROUND_DOWN!(it_v_reg.start, RISCV_GET_LVL_PGSIZE_BITS(i));
             while pt_vptr < it_v_reg.end {
                 pt_vptr += RISCV_GET_LVL_PGSIZE(i);
+                if !provide_cap(
+                    root_cnode_cap,
+                    create_it_pt_cap(lvl1pt_cap, it_alloc_paging(), pt_vptr, IT_ASID),
+                ) {
+                    return cap_null_cap_new();
+                }
             }
             i += 1;
         }
