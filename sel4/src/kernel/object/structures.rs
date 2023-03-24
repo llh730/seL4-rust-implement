@@ -1506,3 +1506,11 @@ pub fn thread_state_set_tsType(thread_state_ptr: *mut thread_state_t, v64: usize
         (*thread_state_ptr).words[0] |= (v64 >> 0) & 0xfusize;
     }
 }
+
+#[inline]
+pub fn cap_domain_cap_new() -> *const cap_t {
+    let mut cap = cap_t::default();
+    cap.words[0] = 0 | (cap_domain_cap & 0x1fusize) << 59;
+    cap.words[1] = 0;
+    (&cap) as *const cap_t
+}

@@ -1,15 +1,16 @@
 use core::arch::asm;
 use core::cell::RefCell;
-
+use core::mem;
+use lazy_static::*;
 use riscv::register::satp;
 
 use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
 
-use super::boot::{get_n_paging, v_region_t};
+use super::boot::{get_n_paging, rootserver, v_region_t, write_slot};
 use super::object::structures::{
     cap_capType_equals, cap_frame_cap_get_capFMappedAddress, cap_frame_cap_new, cap_get_capType,
     cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTMappedASID,
-    cap_page_table_cap_get_capPTMappedAddress, cap_page_table_cap_new, cap_t, exception_t,
+    cap_page_table_cap_get_capPTMappedAddress, cap_page_table_cap_new, cap_t, cte_t, exception_t,
     pte_ptr_get_execute, pte_ptr_get_ppn, pte_ptr_get_read, pte_ptr_get_valid, pte_ptr_get_write,
 };
 
@@ -57,12 +58,10 @@ pub struct findVSpaceForASID_ret {
     pub vspace_root: pte_t,
 }
 
-static mut kernel_text2_pageTable: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
-
-static mut kernel_text_pageTable: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
-
+#[link_section = ".page_table"]
 static mut kernel_root_pageTable: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
 
+#[link_section = ".page_table"]
 static mut kernel_image_level2_pt: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
 
 static mut riscvKSASIDTable: [usize; BIT!(asidHighBits)] = [0; BIT!(asidHighBits)];
@@ -93,7 +92,7 @@ pub unsafe fn read_satp() -> usize {
 #[inline]
 #[no_mangle]
 pub unsafe fn sfence() {
-    core::arch::asm!("sfence.vma");
+    core::arch::asm!("sfence.vma x0,x0");
 }
 
 #[inline]
@@ -138,9 +137,11 @@ pub fn pte_new(
 
 pub fn pte_next(phys_addr: usize, is_leaf: bool) -> pte_t {
     let ppn = (phys_addr >> 12) as usize;
+
     let read = is_leaf as u8;
     let write = read;
     let exec = read;
+    let index = 0;
     return pte_new(
         ppn,
         0,                /* sw */
@@ -155,7 +156,7 @@ pub fn pte_next(phys_addr: usize, is_leaf: bool) -> pte_t {
     );
 }
 
-fn RISCV_GET_PT_INDEX(addr: usize, n: usize) -> usize {
+pub fn RISCV_GET_PT_INDEX(addr: usize, n: usize) -> usize {
     ((addr) >> (((PT_INDEX_BITS) * (((CONFIG_PT_LEVELS) - 1) - (n))) + seL4_PageBits))
         & MASK!(PT_INDEX_BITS)
 }
@@ -191,7 +192,6 @@ pub fn map_kernel_window() {
     }
     pptr = ROUND_DOWN!(KERNEL_ELF_BASE, RISCV_GET_LVL_PGSIZE_BITS(0));
     paddr = ROUND_DOWN!(KERNEL_ELF_PADDR_BASE, RISCV_GET_LVL_PGSIZE_BITS(0));
-
     unsafe {
         kernel_root_pageTable[RISCV_GET_PT_INDEX(KERNEL_ELF_PADDR_BASE + PPTR_BASE_OFFSET, 0)] =
             pte_next(kernel_image_level2_pt.as_ptr() as usize, false);
@@ -200,15 +200,17 @@ pub fn map_kernel_window() {
         kernel_root_pageTable[RISCV_GET_PT_INDEX(paddr, 0)] =
             pte_next(kernel_image_level2_pt.as_ptr() as usize, false);
     }
+
     let mut index = 0;
-    while index < 512 {
+    while pptr < PPTR_TOP + RISCV_GET_LVL_PGSIZE(0) {
         unsafe {
-            kernel_image_level2_pt[index] = pte_next(paddr, true);
+            kernel_image_level2_pt[RISCV_GET_PT_INDEX(pptr, 1)] = pte_next(paddr, true);
         }
         index += 1;
         pptr += RISCV_GET_LVL_PGSIZE(1);
         paddr += RISCV_GET_LVL_PGSIZE(1);
     }
+    let mut temp: usize;
 
     // extern "C" {
     //     fn stext();
@@ -227,13 +229,7 @@ pub fn map_kernel_window() {
 pub fn activate_kernel_vspace() {
     unsafe {
         setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
-        sfence();
     }
-}
-
-pub fn pt_init() {
-    map_kernel_window();
-    activate_kernel_vspace();
 }
 
 pub fn map_it_pt_cap(_vspace_cap: *const cap_t, _pt_cap: *const cap_t) {
@@ -475,3 +471,24 @@ pub fn arch_get_n_paging(it_v_reg: v_region_t) -> usize {
 //         if poolPtr!=0 &&
 //     }
 // }
+
+pub fn create_it_address_space(root_cnode_cap: *const cap_t, it_v_reg: v_region_t) -> *const cap_t {
+    unsafe {
+        copyGlobalMappings(rootserver.vspace);
+        let lvl1pt_cap = cap_page_table_cap_new(IT_ASID, rootserver.vspace, 1, rootserver.vspace);
+        write_slot(
+            (rootserver.cnode + mem::size_of::<cte_t>() * seL4_CapInitThreadVspace) as *const cte_t,
+            lvl1pt_cap,
+        );
+
+        let mut i = 0;
+        while i < CONFIG_PT_LEVELS - 1 {
+            let mut pt_vptr = ROUND_DOWN!(it_v_reg.start, RISCV_GET_LVL_PGSIZE_BITS(i));
+            while pt_vptr < it_v_reg.end {
+                pt_vptr += RISCV_GET_LVL_PGSIZE(i);
+            }
+            i += 1;
+        }
+        lvl1pt_cap
+    }
+}

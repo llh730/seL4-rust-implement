@@ -46,6 +46,11 @@ pub struct arch_tcb_t {
     registers: [usize; n_contextRegisters],
 }
 
+pub struct dschedule{
+    domain:usize,
+    length:usize,
+}
+
 const ra: usize = 0;
 const sp: usize = 1;
 const gp: usize = 2;

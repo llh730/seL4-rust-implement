@@ -4,7 +4,7 @@ use crate::{BIT, MASK};
 
 pub const USER_STACK_SIZE: usize = 4096 * 2;
 pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
-pub const KERNEL_HEAP_SIZE: usize = 0x20_0000;
+pub const KERNEL_HEAP_SIZE: usize = 0x800000;
 pub const MEMORY_END: usize = 0x88000000;
 pub const PAGE_SIZE: usize = 0x1000;
 pub const PAGE_SIZE_BITS: usize = 0xc;
@@ -76,3 +76,16 @@ pub const seL4_VSpaceBits: usize = seL4_PML4Bits;
 pub const seL4_TCBBits: usize = 12;
 pub const BI_FRAME_SIZE_BITS: usize = 12;
 pub const seL4_ASIDPoolBits: usize = 12;
+
+pub const seL4_CapNull: usize = 0;
+pub const seL4_CapInitThreadTCB: usize = 1;
+pub const seL4_CapInitThreadCNode: usize = 2;
+pub const seL4_CapInitThreadVspace: usize = 3;
+pub const seL4_CapIRQControl: usize = 4;
+pub const seL4_CapASIDControl: usize = 5;
+pub const seL4_CapInitThreadASIDPool: usize = 6;
+pub const seL4_CapInitThreadIPCBuffer: usize = 10;
+pub const seL4_CapDomain: usize = 11;
+
+pub const SIE_STIE: usize = 5;
+pub const SIE_SEIE: usize = 9;

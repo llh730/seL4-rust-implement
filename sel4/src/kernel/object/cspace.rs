@@ -127,12 +127,10 @@ pub fn resolveAddressBits(
                 return ret;
             }
             offset = (capptr >> (n_bits - levelBits)) & MASK!(radixBits);
-            unsafe {
-                slot = ((cap_cnode_cap_get_capCNodePtr(_nodeCap)) + offset) as *mut cte_t;
-            }
+            slot = ((cap_cnode_cap_get_capCNodePtr(_nodeCap)) + offset) as *mut cte_t;
 
             if likely(n_bits == levelBits) {
-                ret.slot = slot ;
+                ret.slot = slot;
                 ret.bitsRemaining = 0;
                 return ret;
             }

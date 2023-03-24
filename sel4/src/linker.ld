@@ -30,8 +30,10 @@ SECTIONS
 
     ki_boot_end = .;
 
-    stext = .;
 
+    . = ALIGN(4K);
+    stext = .;
+    
     .text  : 
     {
 
@@ -62,6 +64,7 @@ SECTIONS
         *(.rodata.*)
     }
 
+    . = ALIGN(4K);
     .data  : 
     {
         *(.data)
@@ -73,8 +76,10 @@ SECTIONS
         *(._idle_thread)
     }
 
+    . = ALIGN(4K);
     .bss : 
     {
+        . = ALIGN(4K);
         *(.bss)
         *(COMMON) /* fallback in case '-fno-common' is not used */
 
@@ -85,6 +90,12 @@ SECTIONS
 
         /* large data such as the globals frame and global PD */
         *(.bss.aligned)
+    }
+    . = ALIGN(4K);
+    .page_table :
+    {
+        . = ALIGN(4K);
+        *(.page_table.aligned)
     }
 
     . = ALIGN(4K);

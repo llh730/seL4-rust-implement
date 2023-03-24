@@ -27,8 +27,13 @@ use core::mem;
 use riscv::register::{satp, sepc, sstatus};
 
 use crate::heap_alloc::init_heap;
+use crate::kernel::boot::{create_root_cnode, try_inital_kernel};
+use crate::kernel::object::structures::pte_ptr_get_ppn;
 use crate::kernel::thread::idle_thread;
-use crate::kernel::vspace::{map_kernel_window, pt_init, read_satp, write_satp};
+use crate::kernel::vspace::{
+    activate_kernel_vspace, map_kernel_window, read_satp, write_satp,
+    RISCV_GET_PT_INDEX,
+};
 use crate::tasks::run_first_task;
 use crate::{kernel::object::structures::cap_t, sbi::shutdown};
 mod config;
@@ -45,16 +50,15 @@ mod timer;
 mod trap;
 mod utils;
 
-
+core::arch::global_asm!(include_str!("link_app.S"));
 core::arch::global_asm!(include_str!("crt0.S"));
 
 #[no_mangle]
-#[link_section = ".text"]
 pub fn rust_main() {
     println!("[kernel] Hello, world!");
     init_heap();
-    pt_init();
-
+    map_kernel_window();
+    activate_kernel_vspace();
+    try_inital_kernel();
     shutdown();
 }
-

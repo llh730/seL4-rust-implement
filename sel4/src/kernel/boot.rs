@@ -1,20 +1,25 @@
-use core::cell::RefCell;
+use core::{alloc::Layout, arch::asm, cell::RefCell, mem};
 
 use crate::{
     config::{
-        seL4_ASIDPoolBits, seL4_PageBits, seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits,
-        seL4_VSpaceBits, BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG,
-        MAX_NUM_RESV_REG,
+        seL4_ASIDPoolBits, seL4_CapDomain, seL4_CapInitThreadCNode, seL4_PageBits,
+        seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits, seL4_VSpaceBits, BI_FRAME_SIZE_BITS,
+        CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG, SIE_SEIE, SIE_STIE,
     },
-    println, BIT, ROUND_DOWN, ROUND_UP,
+    println, trap, BIT, ROUND_DOWN, ROUND_UP,
 };
 
 use super::{
-    object::structures::{
-        cap_cnode_cap_new, cap_t, cte_t, mdb_node_set_mdbFirstBadged, mdb_node_set_mdbRevocable,
-        mdb_node_t,
+    object::{
+        objecttype::cap_get_capPtr,
+        structures::{
+            cap_cnode_cap_new, cap_domain_cap_new, cap_t, cte_t, mdb_node_set_mdbFirstBadged,
+            mdb_node_set_mdbRevocable, mdb_node_t,
+        },
     },
-    vspace::{arch_get_n_paging, paddr_to_pptr, pptr_to_paddr},
+    vspace::{
+        activate_kernel_vspace, arch_get_n_paging, map_kernel_window, paddr_to_pptr, pptr_to_paddr,
+    },
 };
 
 type seL4_SlotPos = usize;
@@ -69,14 +74,14 @@ pub struct ndks_boot_t {
 
 #[derive(Copy, Clone)]
 pub struct rootserver_mem_t {
-    cnode: usize,
-    vspace: usize,
-    asid_pool: usize,
-    ipc_buf: usize,
-    boot_info: usize,
-    extra_bi: usize,
-    tcb: usize,
-    paging: region_t,
+    pub cnode: usize,
+    pub vspace: usize,
+    pub asid_pool: usize,
+    pub ipc_buf: usize,
+    pub boot_info: usize,
+    pub extra_bi: usize,
+    pub tcb: usize,
+    pub paging: region_t,
 }
 
 #[inline]
@@ -84,7 +89,7 @@ pub fn is_reg_empty(reg: region_t) -> bool {
     reg.start == reg.end
 }
 
-static mut rootserver: rootserver_mem_t = rootserver_mem_t {
+pub static mut rootserver: rootserver_mem_t = rootserver_mem_t {
     cnode: 0,
     vspace: 0,
     asid_pool: 0,
@@ -98,14 +103,12 @@ static mut rootserver: rootserver_mem_t = rootserver_mem_t {
     },
 };
 static mut rootserver_mem: region_t = region_t { start: 0, end: 0 };
-static mut ndks_boot: ndks_boot_t = unsafe {
-    ndks_boot_t {
-        reserved: [p_region_t { start: 0, end: 0 }; MAX_NUM_RESV_REG],
-        resv_count: 16,
-        freemem: [region_t { start: 0, end: 0 }; MAX_NUM_FREEMEM_REG],
-        bi_frame: 0 as *const seL4_BootInfo,
-        slot_pos_cur: 0,
-    }
+static mut ndks_boot: ndks_boot_t = ndks_boot_t {
+    reserved: [p_region_t { start: 0, end: 0 }; MAX_NUM_RESV_REG],
+    resv_count: 16,
+    freemem: [region_t { start: 0, end: 0 }; MAX_NUM_FREEMEM_REG],
+    bi_frame: 0 as *const seL4_BootInfo,
+    slot_pos_cur: 0,
 };
 
 #[inline]
@@ -221,14 +224,9 @@ pub fn alloc_rootserver_obj(size_bits: usize, n: usize) -> usize {
         assert!(allocated % BIT!(size_bits) == 0);
         rootserver_mem.start += n * BIT!(size_bits);
         assert!(rootserver_mem.start <= rootserver_mem.end);
-        core::slice::from_raw_parts_mut(allocated as *mut u8, n * BIT!(size_bits)).fill(0);
         allocated
     }
 }
-
-// pub fn rootserver_max_size_bits(extra_bi_size_bits: usize) -> usize {
-//     let cnode_size_bits = CONFIG_ROOT_CNODE_SIZE_BITS + seL4_SlotBits;
-// }
 
 pub fn maybe_alloc_extra_bi(cmp_size_bits: usize, extra_bi_size_bits: usize) {
     unsafe {
@@ -290,8 +288,10 @@ pub fn create_rootserver_objects(start: usize, it_v_reg: v_region_t, extra_bi_si
         let max = rootserver_max_size_bits(extra_bi_size_bits);
 
         let size = calcaulate_rootserver_size(it_v_reg, extra_bi_size_bits);
-        rootserver_mem.start = start;
-        rootserver_mem.end = start + size;
+        let layout = Layout::from_size_align(size, 4).ok().unwrap();
+        let ptr: *mut u8 = alloc::alloc::alloc(layout);
+        rootserver_mem.start = ptr as usize;
+        rootserver_mem.end = ptr as usize + size;
         maybe_alloc_extra_bi(max, extra_bi_size_bits);
 
         rootserver.cnode = alloc_rootserver_obj(cnode_size_bits, 1);
@@ -328,12 +328,44 @@ pub fn create_root_cnode() -> *const cap_t {
     unsafe {
         let cap = cap_cnode_cap_new(
             CONFIG_ROOT_CNODE_SIZE_BITS,
-            6 - CONFIG_ROOT_CNODE_SIZE_BITS,
+            BIT!(6) - CONFIG_ROOT_CNODE_SIZE_BITS,
             0,
             rootserver.cnode,
         );
+        write_slot(
+            (rootserver.cnode + mem::size_of::<cte_t>() * seL4_CapInitThreadCNode) as *const cte_t,
+            cap,
+        );
         cap
-        //FIXEME :: HOW to use insert the cap slot???
-        // write_slot(,(*cap));
     }
+}
+
+#[inline]
+pub fn clearMemory(ptr: *mut u8, bits: usize) {
+    unsafe {
+        core::slice::from_raw_parts_mut(ptr, BIT!(bits)).fill(0);
+    }
+}
+
+pub fn create_domain_cap(root_cnode_cap: *const cap_t) {
+    let cap = cap_domain_cap_new();
+    write_slot(
+        (cap_get_capPtr(root_cnode_cap) + seL4_CapDomain * mem::size_of::<cte_t>()) as *const cte_t,
+        cap,
+    );
+}
+
+#[inline]
+pub fn set_sie_mask(mask_high: usize) {
+    unsafe {
+        let mut temp: usize;
+        asm!("csrrs {0},sie,{1}",out(reg)temp,in(reg)mask_high);
+    }
+}
+pub fn try_inital_kernel() {
+    trap::init();
+    trap::enable_timer_interrupt();
+    set_sie_mask(BIT!(SIE_SEIE) | BIT!(SIE_STIE));
+    let root_cnode_cap = create_root_cnode();
+    create_domain_cap(root_cnode_cap);
 }

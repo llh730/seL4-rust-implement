@@ -1,5 +1,6 @@
 mod context;
 
+use crate::println;
 use crate::syscall::syscall;
 use crate::tasks::{exit_current_and_run_next, suspend_current_and_run_next};
 use crate::timer::set_next_trigger;
@@ -35,8 +36,13 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             cx.sepc += 4;
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
         }
-        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
-            error!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.", stval, cx.sepc);
+        Trap::Exception(Exception::StoreFault)
+        | Trap::Exception(Exception::StorePageFault)
+        | Trap::Exception(Exception::InstructionFault)
+        | Trap::Exception(Exception::InstructionPageFault)
+        | Trap::Exception(Exception::LoadFault)
+        | Trap::Exception(Exception::LoadPageFault) => {
+            // page fault exit code
             exit_current_and_run_next();
         }
         Trap::Exception(Exception::IllegalInstruction) => {
