@@ -1,6 +1,8 @@
-use crate::{kernel::object::structures::*, MASK, config::seL4_SlotBits};
+use crate::{config::seL4_SlotBits, kernel::object::structures::*, MASK};
 extern crate alloc;
-use core::cell::{RefCell};
+use core::cell::RefCell;
+
+use super::cap::ensureNoChildren;
 
 //bits
 
@@ -26,10 +28,10 @@ pub const cap_page_table_cap: usize = 3;
 pub const cap_asid_control_cap: usize = 11;
 pub const cap_asid_pool_cap: usize = 13;
 
-
-
-
-
+pub struct deriveCap_ret {
+    pub status: exception_t,
+    pub cap: *const cap_t,
+}
 
 pub fn isCapRevocable(_derivedCap: *const cap_t, _srcCap: *const cap_t) -> bool {
     if isArchCap(_derivedCap) {
@@ -52,8 +54,8 @@ pub fn cap_get_capPtr(cap: *const cap_t) -> usize {
         cap_notification_cap => return 0,
         cap_cnode_cap => return cap_cnode_cap_get_capCNodePtr(cap),
         cap_page_table_cap => return cap_page_table_cap_get_capPTBasePtr(cap),
-        cap_frame_cap=>return cap_frame_cap_get_capFBasePtr(cap),
-        cap_asid_pool_cap=>return cap_asid_pool_cap_get_capASIDPool(cap),
+        cap_frame_cap => return cap_frame_cap_get_capFBasePtr(cap),
+        cap_asid_pool_cap => return cap_asid_pool_cap_get_capASIDPool(cap),
         _ => return 0,
     }
 }
@@ -71,7 +73,7 @@ pub fn cap_get_capSizeBits(cap: *const cap_t) -> usize {
     }
 }
 
-pub fn sameRegionAs(cap1: *const cap_t, cap2: *const cap_t)->bool {
+pub fn sameRegionAs(cap1: *const cap_t, cap2: *const cap_t) -> bool {
     match cap_get_capType(cap1) {
         cap_untyped_cap => {
             if cap_get_capIsPhyaical(cap2) {
@@ -82,13 +84,12 @@ pub fn sameRegionAs(cap1: *const cap_t, cap2: *const cap_t)->bool {
                 let bTop = bBase + MASK!(cap_get_capSizeBits(cap2));
                 return (aBase <= bBase) && (bTop <= aTop) && (bBase <= bTop);
             }
-            
+
             return false;
         }
         cap_endpoint_cap => {
             if cap_get_capType(cap2) == cap_endpoint_cap {
-                return cap_endpoint_cap_get_capEPPtr(cap1)
-                    == cap_endpoint_cap_get_capEPPtr(cap2);
+                return cap_endpoint_cap_get_capEPPtr(cap1) == cap_endpoint_cap_get_capEPPtr(cap2);
             }
             return false;
         }
@@ -107,15 +108,16 @@ pub fn sameRegionAs(cap1: *const cap_t, cap2: *const cap_t)->bool {
     }
 }
 
-pub fn Arch_sameObjectAs(cap_a:*const cap_t,cap_b:*const cap_t)->bool{
-    return false ;
+pub fn Arch_sameObjectAs(cap_a: *const cap_t, cap_b: *const cap_t) -> bool {
+    return false;
 }
-pub fn sameObjectAs(cap_a:*const cap_t,cap_b:*const cap_t) -> bool {
-    if cap_get_capType(cap_a)==cap_untyped_cap{
+pub fn sameObjectAs(cap_a: *const cap_t, cap_b: *const cap_t) -> bool {
+    if cap_get_capType(cap_a) == cap_untyped_cap {
         return false;
     }
-    if cap_get_capType(cap_a) == cap_irq_control_cap &&
-        cap_get_capType(cap_b) == cap_irq_handler_cap {
+    if cap_get_capType(cap_a) == cap_irq_control_cap
+        && cap_get_capType(cap_b) == cap_irq_handler_cap
+    {
         return false;
     }
     if isArchCap(cap_a) && isArchCap(cap_b) {
@@ -135,35 +137,37 @@ fn cap_get_capIsPhyaical(cap: *const cap_t) -> bool {
     }
 }
 
-pub fn Arch_finaliseCap(cap:*const cap_t,_final:bool)->finaliseCap_ret{
-    let mut fc_ret=finaliseCap_ret::default();
-    fc_ret.remainder=cap_null_cap_new();
-    fc_ret.cleanupInfo=cap_null_cap_new();
+pub fn Arch_finaliseCap(cap: *const cap_t, _final: bool) -> finaliseCap_ret {
+    let mut fc_ret = finaliseCap_ret::default();
+    fc_ret.remainder = cap_null_cap_new();
+    fc_ret.cleanupInfo = cap_null_cap_new();
     fc_ret
 }
 
-pub fn finaliseCap(cap:*const cap_t,_final:bool,exposed:bool)->finaliseCap_ret{
-    let mut fc_ret=finaliseCap_ret::default();
+pub fn finaliseCap(cap: *const cap_t, _final: bool, exposed: bool) -> finaliseCap_ret {
+    let mut fc_ret = finaliseCap_ret::default();
 
-    if isArchCap(cap){
+    if isArchCap(cap) {
         return Arch_finaliseCap(cap, _final);
     }
 
-    match cap_get_capType(cap){
-        cap_endpoint_cap=>{
-                if _final{
-                    //TODO: cancelALLIPC()
-                }
-                fc_ret.remainder=cap_null_cap_new();
-                fc_ret.cleanupInfo=cap_null_cap_new();
-                return fc_ret;
-        },
-        cap_cnode_cap=>{
+    match cap_get_capType(cap) {
+        cap_endpoint_cap => {
+            if _final {
+                //TODO: cancelALLIPC()
+            }
+            fc_ret.remainder = cap_null_cap_new();
+            fc_ret.cleanupInfo = cap_null_cap_new();
+            return fc_ret;
+        }
+        cap_cnode_cap => {
             if _final {
                 //TODO Zombie_new()
-                fc_ret.remainder =Zombie_new(1usize<< cap_cnode_cap_get_capCNodeRadix(cap),
-                cap_cnode_cap_get_capCNodeRadix(cap),
-                cap_cnode_cap_get_capCNodePtr(cap));
+                fc_ret.remainder = Zombie_new(
+                    1usize << cap_cnode_cap_get_capCNodeRadix(cap),
+                    cap_cnode_cap_get_capCNodeRadix(cap),
+                    cap_cnode_cap_get_capCNodePtr(cap),
+                );
                 fc_ret.cleanupInfo = cap_null_cap_new();
                 return fc_ret;
             } else {
@@ -171,11 +175,64 @@ pub fn finaliseCap(cap:*const cap_t,_final:bool,exposed:bool)->finaliseCap_ret{
                 fc_ret.cleanupInfo = cap_null_cap_new();
                 return fc_ret;
             }
-        },
-        _=>{
+        }
+        _ => {
             fc_ret.remainder = cap_null_cap_new();
             fc_ret.cleanupInfo = cap_null_cap_new();
             return fc_ret;
         }
     }
+}
+
+pub fn Arch_deriveCap(slot: *const cte_t, cap: *const cap_t) -> deriveCap_ret {
+    let mut ret = deriveCap_ret {
+        status: exception_t::EXCEPTION_NONE,
+        cap: 0 as *const cap_t,
+    };
+    match cap_get_capType(cap) {
+        cap_page_table_cap => {
+            if cap_page_table_cap_get_capPTIsMapped(cap) != 0 {
+                ret.cap = cap;
+                ret.status = exception_t::EXCEPTION_NONE;
+            } else {
+                panic!(" error:this page table cap is not mapped");
+            }
+        }
+        cap_frame_cap => {
+            cap_frame_cap_set_capFMappedAddress(cap, 0);
+            ret.cap = cap_frame_cap_set_capFMappedASID(cap, 0);
+        }
+        cap_asid_control_cap | cap_asid_pool_cap => {
+            ret.cap = cap;
+        }
+        _ => {
+            panic!(" Invalid arch cap type :{}", cap_get_capType(cap));
+        }
+    }
+    ret
+}
+
+pub fn deriveCap(slot: *const cte_t, cap: *const cap_t) -> deriveCap_ret {
+    if isArchCap(cap) {}
+    let mut ret = deriveCap_ret {
+        status: exception_t::EXCEPTION_NONE,
+        cap: 0 as *const cap_t,
+    };
+    match cap_get_capType(cap) {
+        cap_zombie_cap => {
+            ret.cap = cap_null_cap_new();
+        }
+        cap_untyped_cap => {
+            ret.status = ensureNoChildren(slot);
+            if ret.status != exception_t::EXCEPTION_NONE {
+                ret.cap = cap_null_cap_new();
+            } else {
+                ret.cap = cap;
+            }
+        }
+        _ => {
+            ret.cap = cap;
+        }
+    }
+    ret
 }

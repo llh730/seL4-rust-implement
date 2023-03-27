@@ -9,42 +9,15 @@ SECTIONS
 
     . = BASE_ADDRESS;
 
-
-    .boot.text  : 
-    {
-        *(.boot.text)
-    }
-    .boot.rodata :
-    {
-        *(.boot.rodata)
-    }
-    .boot.data  : 
-    {
-        *(.boot.data)
-    }
-    .boot.bss  : 
-    {
-        *(.boot.bss)
-    }
-    . = ALIGN(4K);
-
-    ki_boot_end = .;
-
-
     . = ALIGN(4K);
     stext = .;
     
     .text  : 
     {
-
         *(.text.entry)
-        . = ALIGN(4K);
-
-
-        /* Standard kernel */
-        *(.text)
+        *(.text .text.*)
     }
-
+    . = ALIGN(4K);
     etext = .;
 
     /* Start of data section */
@@ -57,29 +30,22 @@ SECTIONS
         *(.sdata*)
         *(.sbss)
     }
-
+    . = ALIGN(4K);
     .rodata  : 
     {
         *(.rodata)
         *(.rodata.*)
     }
-
     . = ALIGN(4K);
     .data  : 
     {
-        *(.data)
+        *(.data .data.*)
+        *(.sdata .sdata.*)
     }
-
-    /* The kernel's idle thread section contains no code or data. */
-    ._idle_thread . (NOLOAD): 
-    {
-        *(._idle_thread)
-    }
-
     . = ALIGN(4K);
     .bss : 
     {
-        . = ALIGN(4K);
+        *(.bss.stack)
         *(.bss)
         *(COMMON) /* fallback in case '-fno-common' is not used */
 
@@ -92,12 +58,27 @@ SECTIONS
         *(.bss.aligned)
     }
     . = ALIGN(4K);
-    .page_table :
+    skernel_stack_alloc = .;
+    .kernel_stack :
+    {
+        . = ALIGN(4K);
+        *(.kernel_stack.aligned)
+    }
+    ekernel_stack_alloc = .;
+    . = . + 8K;
+    . = ALIGN(4K);
+    .user_stack :
+    {
+        . = ALIGN(4K);
+        *(.user_stack.aligned)
+    }
+    . = . + 8K;
+    . = ALIGN(4K);
+   .page_table :
     {
         . = ALIGN(4K);
         *(.page_table.aligned)
     }
-
     . = ALIGN(4K);
     ki_end = .;
 }

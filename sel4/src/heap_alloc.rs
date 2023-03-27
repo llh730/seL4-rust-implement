@@ -1,4 +1,4 @@
-use crate::config::KERNEL_HEAP_SIZE;
+use crate::{config::KERNEL_HEAP_SIZE, println};
 use buddy_system_allocator::LockedHeap;
 
 #[global_allocator]
@@ -12,6 +12,7 @@ pub fn init_heap() {
             .lock()
             .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
     }
+    
 }
 
 #[alloc_error_handler]

@@ -204,7 +204,7 @@ fn isMDBParentOf(cte1: *const cte_t, cte2: *const cte_t) -> bool {
     }
 }
 
-pub fn ensureNoChilren(slot: *const cte_t) -> exception_t {
+pub fn ensureNoChildren(slot: *const cte_t) -> exception_t {
     unsafe {
         if mdb_node_get_mdbNext((*slot).cteMDBNode) != 0 {
             unsafe {

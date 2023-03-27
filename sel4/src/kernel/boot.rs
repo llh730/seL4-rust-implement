@@ -1,13 +1,13 @@
-use core::{alloc::Layout, arch::asm, cell::RefCell, mem};
+use core::{alloc::Layout, arch::asm, mem};
 
 use crate::{
     config::{
-        seL4_ASIDPoolBits, seL4_CapDomain, seL4_CapInitThreadCNode, seL4_NumInitialCaps,
-        seL4_PageBits, seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits, seL4_VSpaceBits,
-        BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG,
-        SIE_SEIE, SIE_STIE,
+        seL4_ASIDPoolBits, seL4_CapDomain, seL4_CapInitThreadCNode, seL4_MsgMaxExtraCaps,
+        seL4_NumInitialCaps, seL4_PageBits, seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits,
+        seL4_VSpaceBits, BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG,
+        MAX_NUM_RESV_REG, SIE_SEIE, SIE_STIE,
     },
-    println, trap, BIT, ROUND_DOWN, ROUND_UP,
+    println, traps, BIT, ROUND_DOWN, ROUND_UP, trap,
 };
 
 use super::{
@@ -30,7 +30,13 @@ pub struct seL4_SlotRegion {
     pub start: seL4_SlotPos,
     pub end: seL4_SlotPos,
 }
-
+#[derive(Copy, Clone)]
+pub struct extra_caps_t {
+    pub excaprefs: [*const cte_t; seL4_MsgMaxExtraCaps],
+}
+pub static mut current_extra_caps: extra_caps_t = extra_caps_t {
+    excaprefs: [0 as *const cte_t; seL4_MsgMaxExtraCaps],
+};
 #[derive(Copy, Clone)]
 pub struct seL4_BootInfo {
     pub extraLen: usize,
@@ -377,16 +383,18 @@ pub fn provide_cap(root_cnode_cap: *const cap_t, cap: *const cap_t) -> bool {
             (rootserver.cnode + mem::size_of::<cte_t>() * ndks_boot.slot_pos_cur) as *const cte_t,
             cap,
         );
-        ndks_boot.slot_pos_cur+=1;
+        ndks_boot.slot_pos_cur += 1;
         true
     }
 }
 
 pub fn try_inital_kernel() {
+    // traps::init();
     trap::init();
-    trap::enable_timer_interrupt();
     set_sie_mask(BIT!(SIE_SEIE) | BIT!(SIE_STIE));
+    // traps::enable_timer_interrupt();
+    trap::enable_timer_interrupt();
     // let size=calcaulate_rootserver_size(it_v_reg, extra_bi_size_bits);
-    let root_cnode_cap = create_root_cnode();
-    create_domain_cap(root_cnode_cap);
+    // let root_cnode_cap = create_root_cnode();
+    // create_domain_cap(root_cnode_cap);
 }

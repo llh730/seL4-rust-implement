@@ -18,7 +18,7 @@ pub fn ZombieType_ZombieCNode(n: usize) -> usize {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct thread_state_t {
-    words: [usize; 3],
+    pub words: [usize; 3],
 }
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct cap_t {
@@ -1298,7 +1298,7 @@ pub fn cap_frame_cap_set_capFVMRights(_cap: *const cap_t, v64: usize) -> *const 
 }
 
 #[inline]
-pub fn cap_frame_cap_get_capFISDevice(_cap: *const cap_t) -> usize {
+pub fn cap_frame_cap_get_capFIsDevice(_cap: *const cap_t) -> usize {
     unsafe {
         let cap = *_cap;
         let ret = (cap.words[0] & 0x40000000000000usize) >> 54;
@@ -1503,7 +1503,7 @@ pub fn thread_state_get_tsType(thread_state_ptr: *const thread_state_t) -> usize
 pub fn thread_state_set_tsType(thread_state_ptr: *mut thread_state_t, v64: usize) {
     unsafe {
         (*thread_state_ptr).words[0] &= !0xfusize;
-        (*thread_state_ptr).words[0] |= (v64 >> 0) & 0xfusize;
+        (*thread_state_ptr).words[0] |= v64 & 0xfusize;
     }
 }
 
@@ -1513,4 +1513,100 @@ pub fn cap_domain_cap_new() -> *const cap_t {
     cap.words[0] = 0 | (cap_domain_cap & 0x1fusize) << 59;
     cap.words[1] = 0;
     (&cap) as *const cap_t
+}
+
+#[inline]
+pub fn endpoint_ptr_set_epQueue_head(ptr: *mut endpoint_t, v64: usize) {
+    unsafe {
+        (*ptr).words[1] &= !0xffffffffffffffffusize;
+        (*ptr).words[1] |= (v64 << 0) & 0xffffffffffffffff;
+    }
+}
+
+#[inline]
+pub fn endpoint_ptr_get_epQueue_head(ptr: *const endpoint_t) -> usize {
+    unsafe {
+        let ret = ((*ptr).words[1] & 0xffffffffffffffffusize) >> 0;
+        ret
+    }
+}
+
+#[inline]
+pub fn endpoint_ptr_set_epQueue_tail(ptr: *mut endpoint_t, v64: usize) {
+    unsafe {
+        (*ptr).words[0] &= !0x7ffffffffcusize;
+        (*ptr).words[0] |= (v64 << 0) & 0x7ffffffffc;
+    }
+}
+
+#[inline]
+pub fn endpoint_ptr_get_epQueue_tail(ptr: *const endpoint_t) -> usize {
+    unsafe {
+        let ret = ((*ptr).words[0] & 0x7ffffffffcusize) >> 0;
+        ret
+    }
+}
+
+#[inline]
+pub fn endpoint_ptr_set_state(ptr: *mut endpoint_t, v64: usize) {
+    unsafe {
+        (*ptr).words[0] &= !0x3usize;
+        (*ptr).words[0] |= (v64 << 0) & 0x3;
+    }
+}
+
+#[inline]
+pub fn endpoint_ptr_get_state(ptr: *const endpoint_t) -> usize {
+    unsafe {
+        let ret = ((*ptr).words[0] & 0x3usize) >> 0;
+        ret
+    }
+}
+
+#[inline]
+pub fn cap_reply_cap_new(
+    capReplyCanGrant: usize,
+    capReplyMaster: usize,
+    capTCBPtr: usize,
+) -> *const cap_t {
+    let mut cap = cap_t::default();
+    cap.words[0] = 0
+        | (capReplyCanGrant & 0x1usize) << 1
+        | (capReplyMaster & 0x1usize) << 0
+        | (cap_reply_cap & 0x1fusize) << 59;
+    cap.words[1] = 0 | capTCBPtr << 0;
+
+    return (&cap) as *const cap_t;
+}
+
+#[inline]
+pub fn cap_reply_cap_get_capTCBPtr(cap: *const cap_t) -> usize {
+    unsafe {
+        let ret = (*cap).words[1] & 0xffffffffffffffffusize;
+        ret
+    }
+}
+
+#[inline]
+pub fn cap_reply_cap_get_capReplyCanGrant(cap: *const cap_t) -> usize {
+    unsafe {
+        let ret = ((*cap).words[0] & 0x2usize) >> 1;
+        ret
+    }
+}
+
+#[inline]
+pub fn cap_reply_cap_set_capReplyCanGrant(cap: *mut cap_t, v64: usize) {
+    unsafe {
+        (*cap).words[0] &= !0x2usize;
+        (*cap).words[0] |= (v64 << 1) & 0x2usize;
+    }
+}
+
+#[inline]
+pub fn cap_reply_cap_get_capReplyMaster(cap: *const cap_t) -> usize {
+    unsafe {
+        let ret = ((*cap).words[0] & 0x1usize) >> 0;
+        ret
+    }
 }

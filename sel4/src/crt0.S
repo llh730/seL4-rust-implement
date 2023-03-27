@@ -1,12 +1,6 @@
     .section .text.entry
     .globl _start
+    .extern ekernel_stack_alloc
 _start:
-    la sp, boot_stack_top
+    la sp, ekernel_stack_alloc
     call rust_main
-
-    .section .bss.stack
-    .globl boot_stack
-boot_stack:
-    .space 4096 * 16
-    .globl boot_stack_top
-boot_stack_top:

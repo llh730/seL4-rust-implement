@@ -3,7 +3,7 @@
 use crate::{BIT, MASK};
 
 pub const USER_STACK_SIZE: usize = 4096 * 2;
-pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
+pub const KERNEL_STACK_SIZE: usize = 4096 * 10;
 pub const KERNEL_HEAP_SIZE: usize = 0x800000;
 pub const MEMORY_END: usize = 0x88000000;
 pub const PAGE_SIZE: usize = 0x1000;
@@ -15,7 +15,7 @@ pub const TRAMPOLINE: usize = usize::MAX - PAGE_SIZE + 1;
 pub const TRAP_CONTEXT: usize = TRAMPOLINE - PAGE_SIZE;
 pub const CLOCK_FREQ: usize = 12500000;
 pub const BIG_STRIDE: isize = 1024;
-pub const APP_BASE_ADDRESS: usize = 0x80400000;
+pub const APP_BASE_ADDRESS: usize = 0x81400000;
 pub const APP_SIZE_LIMIT: usize = 0x20000;
 
 pub const PPTR_BASE: usize = 0xFFFFFFC000000000;
@@ -90,3 +90,10 @@ pub const seL4_CapDomain: usize = 11;
 
 pub const SIE_STIE: usize = 5;
 pub const SIE_SEIE: usize = 9;
+
+pub const seL4_MsgMaxLength: usize = 120;
+pub const msgInfoRegister: usize = 10;
+pub const badgeRegister: usize = 9;
+pub const seL4_MsgExtraCapBits: usize = 2;
+pub const seL4_MsgMaxExtraCaps: usize = BIT!(seL4_MsgExtraCapBits) - 1;
+pub const n_msgRegisters: usize = 4;

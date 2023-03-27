@@ -20,8 +20,8 @@ run: $(KERNEL_BIN)
             -device loader,file=./target/riscv64gc-unknown-none-elf/release/sel4,addr=0x80200000
 
 kernel:
-	# @make -C ../user build TEST=$(TEST) CHAPTER=$(CHAPTER) BASE=$(BASE)
-	@cargo build --release
+	#@make -C ../user build TEST=$(TEST) CHAPTER=$(CHAPTER) BASE=$(BASE)
+	@cargo  build --release
 
 build: env $(KERNEL_BIN)
 

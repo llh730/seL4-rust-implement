@@ -1,6 +1,8 @@
 extern crate alloc;
 
+use crate::config::{tcbCTable, wordBits};
 use crate::kernel::object::{objecttype::*, structures::*};
+use crate::kernel::thread::tcb_t;
 use crate::{BIT, MASK};
 use core::default::Default;
 use core::intrinsics::likely;
@@ -12,8 +14,8 @@ pub const wordRadix: usize = 6;
 
 #[derive(PartialEq)]
 pub struct lookupCap_ret_t {
-    status: exception_t,
-    cap: *const cap_t,
+    pub status: exception_t,
+    pub cap: *const cap_t,
 }
 
 impl Default for lookupCap_ret_t {
@@ -23,6 +25,13 @@ impl Default for lookupCap_ret_t {
             cap: (&cap_t::default()) as *const cap_t,
         }
     }
+}
+
+#[derive(Clone, Copy)]
+pub struct cap_transfer_t {
+    pub ctReceiveRoot: usize,
+    pub ctReceiveIndex: usize,
+    pub ctReceiveDepth: usize,
 }
 
 #[derive(PartialEq)]
@@ -45,8 +54,8 @@ impl Default for lookupCapAndSlot_ret_t {
 #[derive(PartialEq)]
 
 pub struct lookupSlot_raw_ret_t {
-    status: exception_t,
-    slot: *const cte_t,
+    pub status: exception_t,
+    pub slot: *const cte_t,
 }
 
 impl Default for lookupSlot_raw_ret_t {
@@ -59,8 +68,8 @@ impl Default for lookupSlot_raw_ret_t {
 }
 
 pub struct lookupSlot_ret_t {
-    status: exception_t,
-    slot: *const cte_t,
+    pub status: exception_t,
+    pub slot: *const cte_t,
 }
 
 impl Default for lookupSlot_ret_t {
@@ -85,6 +94,18 @@ impl Default for resolveAddressBits_ret_t {
             slot: 0 as *mut cte_t,
             bitsRemaining: 0,
         }
+    }
+}
+
+pub fn lookupSlot(thread: *const tcb_t, capptr: usize) -> lookupSlot_raw_ret_t {
+    unsafe {
+        let threadRoot = (*(*thread).rootCap[tcbCTable]).cap;
+        let res_ret = resolveAddressBits(threadRoot, capptr, wordBits);
+        let ret = lookupSlot_raw_ret_t {
+            status: res_ret.status,
+            slot: res_ret.slot,
+        };
+        return ret;
     }
 }
 
@@ -154,7 +175,6 @@ pub fn lookupSlotFroCNodeOp(
     depth: usize,
 ) -> lookupSlot_ret_t {
     let mut ret: lookupSlot_ret_t = lookupSlot_ret_t::default();
-    let wordBits = BIT!(wordRadix);
     if unlikely(cap_get_capType(root) != cap_cnode_cap) {
         ret.status = exception_t::EXCEPTION_SYSCALL_ERROR;
         return ret;
@@ -177,4 +197,76 @@ pub fn lookupSlotFroCNodeOp(
     ret.slot = res_ret.slot;
     ret.status = exception_t::EXCEPTION_NONE;
     return ret;
+}
+
+pub fn capTransferFromWords(wptr: usize) -> cap_transfer_t {
+    let ptr0 = wptr as *const usize;
+    let ptr1 = (wptr + 8) as *const usize;
+    let ptr2 = (wptr + 16) as *const usize;
+    unsafe {
+        let transfer = cap_transfer_t {
+            ctReceiveRoot: *ptr0,
+            ctReceiveIndex: *ptr1,
+            ctReceiveDepth: *ptr2,
+        };
+        transfer
+    }
+}
+
+pub fn lookupCap(thread: *const tcb_t, cPtr: usize) -> lookupCap_ret_t {
+    let lu_ret = lookupSlot(thread, cPtr);
+    if lu_ret.status != exception_t::EXCEPTION_NONE {
+        panic!("can not find cap!");
+    }
+    unsafe {
+        lookupCap_ret_t {
+            status: exception_t::EXCEPTION_NONE,
+            cap: (*lu_ret.slot).cap,
+        }
+    }
+}
+
+pub fn lookupSlotForCNodeOp(
+    isSource: bool,
+    root: *const cap_t,
+    capptr: usize,
+    depth: usize,
+) -> lookupSlot_ret_t {
+    if cap_get_capType(root) != cap_cnode_cap {
+        panic!(
+            "error : root cap is not cnode cap current cap:{}",
+            cap_get_capType(root)
+        );
+    }
+    if depth < 1 || depth > wordBits {
+        panic!(
+            "error : depth should be in range(1,wordBits),current depth:{} ",
+            depth
+        );
+    }
+    let res_ret = resolveAddressBits(root, capptr, depth);
+
+    if res_ret.status != exception_t::EXCEPTION_NONE {
+        panic!("error : occour in lookup slot");
+    }
+
+    if res_ret.bitsRemaining != 0 {
+        panic!(" bits Remaining is not zero , current bits Remaining");
+    }
+    lookupSlot_ret_t {
+        status: exception_t::EXCEPTION_NONE,
+        slot: res_ret.slot,
+    }
+}
+
+pub fn lookupTargetSlot(root: *const cap_t, capptr: usize, depth: usize) -> lookupSlot_ret_t {
+    lookupSlotForCNodeOp(false, root, capptr, depth)
+}
+
+pub fn lookupSourceSlot(root: *const cap_t, capptr: usize, depth: usize) -> lookupSlot_ret_t {
+    lookupSlotForCNodeOp(true, root, capptr, depth)
+}
+
+pub fn lookupPivotSlot(root: *const cap_t, capptr: usize, depth: usize) -> lookupSlot_ret_t {
+    lookupSlotForCNodeOp(true, root, capptr, depth)
 }

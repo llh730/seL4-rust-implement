@@ -8,8 +8,10 @@ use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
 
 use super::boot::{get_n_paging, it_alloc_paging, provide_cap, rootserver, v_region_t, write_slot};
 use super::object::structures::{
-    cap_capType_equals, cap_frame_cap_get_capFMappedAddress, cap_frame_cap_new, cap_get_capType,
-    cap_null_cap_new, cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTMappedASID,
+    cap_capType_equals, cap_frame_cap_get_capFBasePtr, cap_frame_cap_get_capFIsDevice,
+    cap_frame_cap_get_capFMappedAddress, cap_frame_cap_get_capFSize,
+    cap_frame_cap_get_capFVMRights, cap_frame_cap_new, cap_get_capType, cap_null_cap_new,
+    cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTMappedASID,
     cap_page_table_cap_get_capPTMappedAddress, cap_page_table_cap_new, cap_t, cte_t, exception_t,
     pte_ptr_get_execute, pte_ptr_get_ppn, pte_ptr_get_read, pte_ptr_get_valid, pte_ptr_get_write,
 };
@@ -30,13 +32,21 @@ pub enum vm_page_size_t {
     RISCV_Giga_Page,
     RISCV_Tera_Page,
 }
+const RISCV_4K_Page:usize=0;
+const RISCV_Mega_Page:usize=1;
+const RISCV_Giga_Page:usize=2;
+const RISCV_Tera_Page:usize=3;
+
+const VMKernelOnly: usize = 1;
+const VMReadOnly: usize = 2;
+const VMReadWrite: usize = 3;
 
 #[inline]
-pub fn pageBitsForSize(pagesize: vm_page_size_t) -> usize {
-    match pagesize {
-        vm_page_size_t::RISCV_4K_Page => RISCVPageBits,
-        vm_page_size_t::RISCV_Mega_Page => RISCVMegaPageBits,
-        vm_page_size_t::RISCV_Giga_Page => RISCVGigaPageBits,
+pub fn pageBitsForSize(page_size:usize) -> usize {
+    match page_size {
+        RISCV_4K_Page => RISCVPageBits,
+        RISCV_Mega_Page => RISCVMegaPageBits,
+        RISCV_Giga_Page => RISCVGigaPageBits,
         _ => panic!("Invalid page size!"),
     }
 }
@@ -210,8 +220,6 @@ pub fn map_kernel_window() {
         pptr += RISCV_GET_LVL_PGSIZE(1);
         paddr += RISCV_GET_LVL_PGSIZE(1);
     }
-    let mut temp: usize;
-
     // extern "C" {
     //     fn stext();
     //     fn etext();
@@ -413,7 +421,7 @@ pub fn unmapPageTable(asid: asid_t, vptr: vptr_t, target_pt: pte_t) {
     }
 }
 
-pub fn unmapPage(page_size: vm_page_size_t, asid: asid_t, vptr: vptr_t, pptr: pptr_t) {
+pub fn unmapPage(page_size: usize, asid: asid_t, vptr: vptr_t, pptr: pptr_t) {
     let find_ret = findVSpaceForASID(asid);
     if find_ret.status != exception_t::EXCEPTION_NONE {
         return;
@@ -439,7 +447,7 @@ pub fn unmapPage(page_size: vm_page_size_t, asid: asid_t, vptr: vptr_t, pptr: pp
 
 pub fn setVMRoot(thread: *mut tcb_t) {
     unsafe {
-        let threadRoot = (*thread).rootCap[tcbVTable];
+        let threadRoot = (*(*thread).rootCap[tcbVTable]).cap;
         if cap_get_capType(threadRoot) != cap_page_table_cap {
             setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
             return;
@@ -496,5 +504,26 @@ pub fn create_it_address_space(root_cnode_cap: *const cap_t, it_v_reg: v_region_
             i += 1;
         }
         lvl1pt_cap
+    }
+}
+
+pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> usize {
+    unsafe {
+        let w_bufferPtr = (*thread).tcbIPCBuffer;
+        let bufferCap = (*(*thread).rootCap[tcbBuffer]).cap;
+        if cap_get_capType(bufferCap) != cap_frame_cap {
+            return 0;
+        }
+        if cap_frame_cap_get_capFIsDevice(bufferCap) != 0 {
+            return 0;
+        }
+
+        let vm_rights = cap_frame_cap_get_capFVMRights(bufferCap);
+        if vm_rights == VMReadWrite || (!isReceiver && vm_rights == VMReadOnly) {
+            let basePtr = cap_frame_cap_get_capFBasePtr(bufferCap);
+            let pageBits = pageBitsForSize(cap_frame_cap_get_capFSize(bufferCap));
+            return basePtr + w_bufferPtr & MASK!(pageBits);
+        }
+        0
     }
 }
