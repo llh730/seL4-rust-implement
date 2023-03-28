@@ -13,6 +13,7 @@
 .global trap_entry
 .extern ekernel_stack_alloc
 
+.align 2
 trap_entry:
 
   csrrw t0, sscratch, t0
@@ -61,4 +62,9 @@ csrr x1,  sepc
 
 
   la sp,ekernel_stack_alloc
+.option push
+.option norelax
+  la gp, __global_pointer$
+.option pop
+
   call trap_handler

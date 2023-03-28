@@ -1,14 +1,19 @@
-use core::arch::{self, asm};
+use core::arch::asm;
 
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
-    sepc, sie, stval, stvec,
+    sie, stval, stvec,
 };
 
 use crate::{
-    elfloader::{run_next_task, THREAD},
-    kernel::thread::{arch_tcb_t, ksCurThread, tcb_t, NextIP, n_contextRegisters},
+    config::{
+        RISCVEnvCall, RISCVInstructionAccessFault, RISCVInstructionIllegal,
+        RISCVInstructionPageFault, RISCVLoadAccessFault, RISCVLoadPageFault, RISCVStoreAccessFault,
+        RISCVStorePageFault, RISCVSupervisorTimer,
+    },
+    elfloader::{mark_current_exited, mark_current_suspended, run_next_task, THREAD},
+    kernel::thread::{arch_tcb_t, ksCurThread, tcb_t, NextIP},
     println,
     syscall::syscall,
     timer::set_next_trigger,
@@ -77,42 +82,92 @@ pub fn restore_user_context() {
     }
 }
 
-// #[no_mangle]
-// pub fn trap_handler() {
-//     let scause = scause::read();
-//     let stval = stval::read();
-//     match scause.cause() {
-//         Trap::Exception(Exception::UserEnvCall) => unsafe {
-//             let mut cx = (&((*(THREAD[ksCurThread] as *const tcb_t)).tcbArch)) as *const arch_tcb_t
-//                 as *mut arch_tcb_t;
-//             (*cx).registers[NextIP] += 4;
-//             // println!("{} {} {} {}",(*cx).registers[9],(*cx).registers[16],(*cx).registers[10],(*cx).registers[11]);
-//             (*cx).registers[9] = syscall(
-//                 (*cx).registers[16],
-//                 [(*cx).registers[9], (*cx).registers[10], (*cx).registers[11]],
-//             ) as usize;
-//         },
-//         Trap::Exception(Exception::StoreFault)
-//         | Trap::Exception(Exception::StorePageFault)
-//         | Trap::Exception(Exception::InstructionFault)
-//         | Trap::Exception(Exception::InstructionPageFault)
-//         | Trap::Exception(Exception::LoadFault)
-//         | Trap::Exception(Exception::LoadPageFault)
-//         | Trap::Exception(Exception::IllegalInstruction) => {
-//             run_next_task();
-//             restore_user_context();
-//         }
-//         Trap::Interrupt(Interrupt::SupervisorTimer) => {
-//             set_next_trigger();
-//             run_next_task();
-//             restore_user_context();
-//         }
-//         _ => {
-//             panic!(
-//                 "Unsupported trap {:?}, stval = {:#x}!",
-//                 scause.cause(),
-//                 stval
-//             );
-//         }
-//     }
-// }
+#[no_mangle]
+pub fn trap_handler() {
+    unsafe {
+        let scause = scause::read();
+        let stval = stval::read();
+        match scause.cause() {
+            Trap::Exception(Exception::UserEnvCall) => {
+                let mut cx = (&((*(THREAD[ksCurThread] as *const tcb_t)).tcbArch))
+                    as *const arch_tcb_t as *mut arch_tcb_t;
+                (*cx).registers[NextIP] += 4;
+                (*cx).registers[9] = syscall(
+                    (*cx).registers[16],
+                    [(*cx).registers[9], (*cx).registers[10], (*cx).registers[11]],
+                ) as usize;
+                restore_user_context();
+            }
+            Trap::Exception(Exception::StoreFault)
+            | Trap::Exception(Exception::StorePageFault)
+            | Trap::Exception(Exception::InstructionFault)
+            | Trap::Exception(Exception::InstructionPageFault)
+            | Trap::Exception(Exception::LoadFault)
+            | Trap::Exception(Exception::LoadPageFault) => {
+                // page fault exit code
+                mark_current_exited();
+                run_next_task();
+                restore_user_context();
+            }
+            Trap::Exception(Exception::IllegalInstruction) => {
+                error!("[kernel] IllegalInstruction in application, core dumped.");
+                mark_current_exited();
+                run_next_task();
+                restore_user_context();
+            }
+            Trap::Interrupt(Interrupt::SupervisorTimer) => {
+                set_next_trigger();
+                mark_current_suspended();
+                run_next_task();
+                restore_user_context();
+            }
+            _ => {
+                panic!(
+                    "Unsupported trap {:?}, stval = {:#x}!",
+                    scause.cause(),
+                    stval
+                );
+            } // let scause = scause::read();
+              //     let scause = (*(THREAD[ksCurThread] as *const tcb_t)).tcbArch.registers[31];
+              //     let sepc = (*(THREAD[ksCurThread] as *const tcb_t)).tcbArch.registers[33];
+              //     let stval = stval::read();
+              //     match scause {
+              //         RISCVEnvCall => {
+              //             let mut cx = (&((*(THREAD[ksCurThread] as *const tcb_t)).tcbArch))
+              //                 as *const arch_tcb_t as *mut arch_tcb_t;
+              //             (*cx).registers[NextIP] += 4;
+              //             (*cx).registers[9] = syscall(
+              //                 (*cx).registers[16],
+              //                 [(*cx).registers[9], (*cx).registers[10], (*cx).registers[11]],
+              //             ) as usize;
+              //             restore_user_context();
+              //         }
+              //         RISCVStoreAccessFault
+              //         | RISCVStorePageFault
+              //         | RISCVInstructionAccessFault
+              //         | RISCVInstructionPageFault
+              //         | RISCVLoadAccessFault
+              //         | RISCVLoadPageFault => {
+              //             println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.", stval, sepc,scause);
+              //             mark_current_exited();
+              //             run_next_task();
+              //             restore_user_context();
+              //         }
+              //         RISCVInstructionIllegal => {
+              //             println!("[kernel] IllegalInstruction in application, core dumped.");
+              //             mark_current_exited();
+              //             run_next_task();
+              //             restore_user_context();
+              //         }
+              //         RISCVSupervisorTimer => {
+              //             set_next_trigger();
+              //             mark_current_suspended();
+              //             run_next_task();
+              //             restore_user_context();
+              //         }
+              //         _ => {
+              //             panic!("Unsupported trap {}, stval = {:#x}!", scause, stval);
+              //         }
+        }
+    }
+}

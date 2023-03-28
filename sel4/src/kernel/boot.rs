@@ -7,7 +7,7 @@ use crate::{
         seL4_VSpaceBits, BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG,
         MAX_NUM_RESV_REG, SIE_SEIE, SIE_STIE,
     },
-    println, traps, BIT, ROUND_DOWN, ROUND_UP, trap,
+    println, BIT, ROUND_DOWN, ROUND_UP, 
 };
 
 use super::{
@@ -390,10 +390,10 @@ pub fn provide_cap(root_cnode_cap: *const cap_t, cap: *const cap_t) -> bool {
 
 pub fn try_inital_kernel() {
     // traps::init();
-    trap::init();
+    // trap::init();
     set_sie_mask(BIT!(SIE_SEIE) | BIT!(SIE_STIE));
     // traps::enable_timer_interrupt();
-    trap::enable_timer_interrupt();
+    // trap::enable_timer_interrupt();
     // let size=calcaulate_rootserver_size(it_v_reg, extra_bi_size_bits);
     // let root_cnode_cap = create_root_cnode();
     // create_domain_cap(root_cnode_cap);

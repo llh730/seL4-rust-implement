@@ -43,6 +43,7 @@ pub const ThreadStateBlockedOnSend: usize = 4;
 pub const ThreadStateBlockedOnReply: usize = 5;
 pub const ThreadStateBlockedOnNotification: usize = 6;
 pub const ThreadStateIdleThreadState: usize = 7;
+pub const ThreadStateExited: usize = 8;
 
 pub struct tcb_t {
     pub tcbArch: arch_tcb_t,
@@ -396,7 +397,7 @@ pub fn Arch_switchToThread(tcb: *const tcb_t) {
 pub fn Arch_configureIdleThread(tcb: *const tcb_t) {
     setRegister(tcb as *mut tcb_t, NextIP, idle_thread as usize);
     setRegister(tcb as *mut tcb_t, SSTATUS, SSTATUS_SPP | SSTATUS_SPIE);
-    setRegister(tcb as *mut tcb_t, sp, KERNEL_STACK.get_sp());
+    // setRegister(tcb as *mut tcb_t, sp, KERNEL_STACK.get_sp());
 }
 
 pub fn Arch_switchToIdleThread() {
@@ -850,7 +851,7 @@ pub fn setupCallerCap(sender: *const tcb_t, receiver: *const tcb_t, canGrant: bo
 
         let callerSlot = (*receiver).rootCap[tcbCaller];
         let callerCap = (*callerSlot).cap;
-        
+
         assert!(cap_get_capType(callerCap) == cap_null_cap);
         cteInsert(
             cap_reply_cap_new(canGrant as usize, 0, sender as usize),

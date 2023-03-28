@@ -1,4 +1,5 @@
-use crate::config::{MAX_SYSCALL_NUM};
+use crate::elfloader::{run_next_task, mark_current_suspended, mark_current_exited};
+// use crate::tasks::{exit_current_and_run_next, suspend_current_and_run_next};
 // use crate::tasks::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus};
 use crate::timer::get_time_us;
 
@@ -35,11 +36,15 @@ pub struct TimeVal {
 pub fn sys_exit(exit_code: i32) -> ! {
     info!("[kernel] Application exited with code {}", exit_code);
     // exit_current_and_run_next();
+    mark_current_exited();
+    run_next_task();
     panic!("Unreachable in sys_exit!");
 }
 
 pub fn sys_yield() -> isize {
     // suspend_current_and_run_next();
+    mark_current_suspended();
+    run_next_task();
     0
 }
 

@@ -1,6 +1,6 @@
-use core::{alloc::Layout, arch::asm, mem, num};
+use core::{alloc::Layout, mem};
 
-use alloc::{string::String, vec::Vec};
+use alloc::{string::String};
 
 use crate::{
     config::{
@@ -9,12 +9,13 @@ use crate::{
     },
     kernel::{
         object::{
-            cap,
-            structures::{cap_t, thread_state_get_tsType, thread_state_set_tsType, thread_state_t, cte_t},
+            structures::{
+                cte_t, thread_state_get_tsType, thread_state_set_tsType, thread_state_t,
+            },
         },
         thread::{
-            arch_tcb_t, ksCurThread, tcb_t, NextIP, ThreadStateInactive, ThreadStateRestart,
-            ThreadStateRunning,
+            arch_tcb_t, ksCurThread, tcb_t,  ThreadStateInactive, 
+            ThreadStateRunning, ThreadStateExited,
         },
     },
     println,
@@ -107,7 +108,6 @@ pub fn create_thread_for_tasks() {
             let state_size = mem::size_of::<thread_state_t>();
             let state_layout = Layout::from_size_align(state_size, 4).ok().unwrap();
             let state = alloc::alloc::alloc(state_layout) as *const thread_state_t;
-            // let state = thread_state_t { words: [0; 3] };
             thread_state_set_tsType(state as *mut thread_state_t, ThreadStateInactive);
             let tcb_size = mem::size_of::<tcb_t>();
             let tcb_layout = Layout::from_size_align(tcb_size, 4).ok().unwrap();
@@ -117,7 +117,7 @@ pub fn create_thread_for_tasks() {
                     get_base_i(index),
                     USER_STACK[index].get_sp(),
                 ),
-                tcbState:  state,
+                tcbState: state,
                 seL4_Fault_t: 0,
                 tcbLookupFailure: 0,
                 domain: 0,
@@ -140,6 +140,19 @@ pub fn create_thread_for_tasks() {
     }
 }
 
+pub fn list_task() {
+    unsafe {
+        let num_app = get_num_app();
+        for j in 0..num_app {
+            println!("THREAD:{}", j);
+            let tcb = THREAD[j] as *const tcb_t;
+            for i in 0..35 {
+                println!("register[{}] : {}", i, (*tcb).tcbArch.registers[i]);
+            }
+        }
+    }
+}
+
 pub fn run_first_task() {
     unsafe {
         ksCurThread = 0;
@@ -149,19 +162,38 @@ pub fn run_first_task() {
     }
 }
 
+pub fn mark_current_suspended() {
+    unsafe {
+        thread_state_set_tsType(
+            (*(THREAD[ksCurThread] as *const tcb_t)).tcbState as *mut thread_state_t,
+            ThreadStateInactive,
+        );
+        println!("set state[{}]: {}",ksCurThread,thread_state_get_tsType((*(THREAD[ksCurThread] as *const tcb_t)).tcbState));
+    }
+}
+
+
+pub fn mark_current_exited() {
+    unsafe {
+        thread_state_set_tsType(
+            (*(THREAD[ksCurThread] as *const tcb_t)).tcbState as *mut thread_state_t,
+            ThreadStateExited,
+        );
+    }
+}
+
 pub fn run_next_task() {
     unsafe {
         let next = find_next_task();
-        if next == 0 {
+        if next == usize::MAX {
             panic!("All applications completed!");
         }
-        // let next = ksCurThread + 1;
         let next_tcb = THREAD[next] as *const tcb_t;
         thread_state_set_tsType(
             (*next_tcb).tcbState as *mut thread_state_t,
             ThreadStateRunning,
         );
-        ksCurThread = next
+        ksCurThread = next;
     }
 }
 
@@ -177,13 +209,6 @@ pub fn find_next_task() -> usize {
             }
             i += 1;
         }
-        0
+        usize::MAX
     }
-}
-
-pub fn init_app_cx(app_id: usize) -> usize {
-    KERNEL_STACK.push_context(arch_tcb_t::app_init_context(
-        get_base_i(app_id),
-        USER_STACK[app_id].get_sp(),
-    ))
 }

@@ -31,17 +31,20 @@ SECTIONS
         *(.sbss)
     }
     . = ALIGN(4K);
+    . = . + 4K;
     .rodata  : 
     {
         *(.rodata)
         *(.rodata.*)
     }
     . = ALIGN(4K);
+    . = . + 4K;
     .data  : 
     {
         *(.data .data.*)
         *(.sdata .sdata.*)
     }
+    . = . + 4K;
     . = ALIGN(4K);
     .bss : 
     {
@@ -57,6 +60,7 @@ SECTIONS
         /* large data such as the globals frame and global PD */
         *(.bss.aligned)
     }
+    . = . + 4K;
     . = ALIGN(4K);
     skernel_stack_alloc = .;
     .kernel_stack :
@@ -67,11 +71,13 @@ SECTIONS
     ekernel_stack_alloc = .;
     . = . + 8K;
     . = ALIGN(4K);
+    suser_stack_alloc = .;
     .user_stack :
     {
         . = ALIGN(4K);
         *(.user_stack.aligned)
     }
+    euser_stack_alloc = .;
     . = . + 8K;
     . = ALIGN(4K);
    .page_table :

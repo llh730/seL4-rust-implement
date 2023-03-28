@@ -97,3 +97,17 @@ pub const badgeRegister: usize = 9;
 pub const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = BIT!(seL4_MsgExtraCapBits) - 1;
 pub const n_msgRegisters: usize = 4;
+
+
+pub const RISCVInstructionMisaligned:usize=0;
+pub const RISCVInstructionAccessFault:usize=1;
+pub const RISCVInstructionIllegal:usize=2;
+pub const RISCVBreakPoint:usize=3;
+pub const RISCVLoadAccessFault :usize= 5;
+pub const RISCVAddressMisaligned:usize = 6;
+pub const RISCVStoreAccessFault:usize = 7;
+pub const RISCVEnvCall :usize= 8;
+pub const RISCVInstructionPageFault :usize= 12;
+pub const RISCVLoadPageFault:usize = 13;
+pub const RISCVStorePageFault:usize = 15;
+pub const RISCVSupervisorTimer:usize=9223372036854775813;
