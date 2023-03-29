@@ -156,7 +156,7 @@ pub fn list_task() {
 pub fn run_first_task() {
     unsafe {
         ksCurThread = 0;
-        let tcb = THREAD[ksCurThread] as *const tcb_t;
+        let tcb = ksCurThread as *const tcb_t;
         thread_state_set_tsType((*tcb).tcbState as *mut thread_state_t, ThreadStateRunning);
         restore_user_context();
     }
@@ -165,10 +165,9 @@ pub fn run_first_task() {
 pub fn mark_current_suspended() {
     unsafe {
         thread_state_set_tsType(
-            (*(THREAD[ksCurThread] as *const tcb_t)).tcbState as *mut thread_state_t,
+            (*(ksCurThread as *const tcb_t)).tcbState as *mut thread_state_t,
             ThreadStateInactive,
         );
-        println!("set state[{}]: {}",ksCurThread,thread_state_get_tsType((*(THREAD[ksCurThread] as *const tcb_t)).tcbState));
     }
 }
 
@@ -176,7 +175,7 @@ pub fn mark_current_suspended() {
 pub fn mark_current_exited() {
     unsafe {
         thread_state_set_tsType(
-            (*(THREAD[ksCurThread] as *const tcb_t)).tcbState as *mut thread_state_t,
+            (*(ksCurThread as *const tcb_t)).tcbState as *mut thread_state_t,
             ThreadStateExited,
         );
     }

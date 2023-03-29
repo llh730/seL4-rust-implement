@@ -36,7 +36,7 @@ pub fn enable_timer_interrupt() {
 
 pub fn restore_user_context() {
     unsafe {
-        let cur_thread_reg = (*(THREAD[ksCurThread] as *const tcb_t))
+        let cur_thread_reg = (*(ksCurThread as *const tcb_t))
             .tcbArch
             .registers
             .as_ptr() as usize;
@@ -85,11 +85,12 @@ pub fn restore_user_context() {
 #[no_mangle]
 pub fn trap_handler() {
     unsafe {
-        let scause = scause::read();
+        let scause = (*(ksCurThread as *const tcb_t)).tcbArch.registers[31];
+        let sepc = (*(ksCurThread as *const tcb_t)).tcbArch.registers[33];
         let stval = stval::read();
-        match scause.cause() {
-            Trap::Exception(Exception::UserEnvCall) => {
-                let mut cx = (&((*(THREAD[ksCurThread] as *const tcb_t)).tcbArch))
+        match scause {
+            RISCVEnvCall => {
+                let mut cx = (&((*(ksCurThread as *const tcb_t)).tcbArch))
                     as *const arch_tcb_t as *mut arch_tcb_t;
                 (*cx).registers[NextIP] += 4;
                 (*cx).registers[9] = syscall(
@@ -98,76 +99,34 @@ pub fn trap_handler() {
                 ) as usize;
                 restore_user_context();
             }
-            Trap::Exception(Exception::StoreFault)
-            | Trap::Exception(Exception::StorePageFault)
-            | Trap::Exception(Exception::InstructionFault)
-            | Trap::Exception(Exception::InstructionPageFault)
-            | Trap::Exception(Exception::LoadFault)
-            | Trap::Exception(Exception::LoadPageFault) => {
-                // page fault exit code
+            RISCVStoreAccessFault
+            | RISCVStorePageFault
+            | RISCVInstructionAccessFault
+            | RISCVInstructionPageFault
+            | RISCVLoadAccessFault
+            | RISCVLoadPageFault => {
+                println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.", stval, sepc,scause);
                 mark_current_exited();
                 run_next_task();
                 restore_user_context();
             }
-            Trap::Exception(Exception::IllegalInstruction) => {
-                error!("[kernel] IllegalInstruction in application, core dumped.");
+            RISCVInstructionIllegal => {
+                println!("[kernel] IllegalInstruction in application, core dumped.");
                 mark_current_exited();
                 run_next_task();
                 restore_user_context();
             }
-            Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            RISCVSupervisorTimer => {
                 set_next_trigger();
                 mark_current_suspended();
                 run_next_task();
                 restore_user_context();
             }
             _ => {
-                panic!(
-                    "Unsupported trap {:?}, stval = {:#x}!",
-                    scause.cause(),
-                    stval
-                );
-            } // let scause = scause::read();
-              //     let scause = (*(THREAD[ksCurThread] as *const tcb_t)).tcbArch.registers[31];
-              //     let sepc = (*(THREAD[ksCurThread] as *const tcb_t)).tcbArch.registers[33];
-              //     let stval = stval::read();
-              //     match scause {
-              //         RISCVEnvCall => {
-              //             let mut cx = (&((*(THREAD[ksCurThread] as *const tcb_t)).tcbArch))
-              //                 as *const arch_tcb_t as *mut arch_tcb_t;
-              //             (*cx).registers[NextIP] += 4;
-              //             (*cx).registers[9] = syscall(
-              //                 (*cx).registers[16],
-              //                 [(*cx).registers[9], (*cx).registers[10], (*cx).registers[11]],
-              //             ) as usize;
-              //             restore_user_context();
-              //         }
-              //         RISCVStoreAccessFault
-              //         | RISCVStorePageFault
-              //         | RISCVInstructionAccessFault
-              //         | RISCVInstructionPageFault
-              //         | RISCVLoadAccessFault
-              //         | RISCVLoadPageFault => {
-              //             println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.", stval, sepc,scause);
-              //             mark_current_exited();
-              //             run_next_task();
-              //             restore_user_context();
-              //         }
-              //         RISCVInstructionIllegal => {
-              //             println!("[kernel] IllegalInstruction in application, core dumped.");
-              //             mark_current_exited();
-              //             run_next_task();
-              //             restore_user_context();
-              //         }
-              //         RISCVSupervisorTimer => {
-              //             set_next_trigger();
-              //             mark_current_suspended();
-              //             run_next_task();
-              //             restore_user_context();
-              //         }
-              //         _ => {
-              //             panic!("Unsupported trap {}, stval = {:#x}!", scause, stval);
-              //         }
+                panic!("Unsupported trap {}, stval = {:#x}!", scause, stval);
+            }
         }
     }
 }
+
+

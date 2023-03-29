@@ -1,25 +1,41 @@
-use core::{alloc::Layout, arch::asm, mem};
+use core::{
+    alloc::Layout,
+    arch::{self, asm},
+    mem,
+};
+
+use alloc::{format, string::String};
 
 use crate::{
     config::{
-        seL4_ASIDPoolBits, seL4_CapDomain, seL4_CapInitThreadCNode, seL4_MsgMaxExtraCaps,
-        seL4_NumInitialCaps, seL4_PageBits, seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits,
-        seL4_VSpaceBits, BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG,
-        MAX_NUM_RESV_REG, SIE_SEIE, SIE_STIE,
+        seL4_ASIDPoolBits, seL4_CapDomain, seL4_CapInitThreadCNode, seL4_CapInitThreadIPCBuffer,
+        seL4_CapInitThreadTCB, seL4_CapInitThreadVspace, seL4_MsgMaxExtraCaps, seL4_NumInitialCaps,
+        seL4_PageBits, seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits, seL4_VSpaceBits, tcbBuffer,
+        tcbCNodeEntries, tcbCTable, tcbVTable, RISCVMegaPageBits, RISCVPageBits,
+        BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG,
+        PAGE_BITS, SIE_SEIE, SIE_STIE,
     },
-    println, BIT, ROUND_DOWN, ROUND_UP, 
+    kernel::{object::structures::{cap_null_cap_new, mdb_node_new, thread_state_new}, thread::configureIdleThread},
+    println, traps, BIT, ROUND_DOWN, ROUND_UP, elfloader::USER_STACK,
 };
 
 use super::{
     object::{
-        objecttype::cap_get_capPtr,
+        cap::cteInsert,
+        objecttype::{cap_get_capPtr, cap_thread_cap, deriveCap},
         structures::{
-            cap_cnode_cap_new, cap_domain_cap_new, cap_t, cte_t, mdb_node_set_mdbFirstBadged,
-            mdb_node_set_mdbRevocable, mdb_node_t,
+            cap_cnode_cap_new, cap_domain_cap_new, cap_frame_cap_new, cap_t, cap_thread_cap_new,
+            cte_t, mdb_node_set_mdbFirstBadged, mdb_node_set_mdbRevocable, mdb_node_t,
+            thread_state_set_tsType, thread_state_t,
         },
     },
+    thread::{
+        arch_tcb_t, ksCurDomain, ksCurThread, ksIdleThread, setNextPC, setRegister, setThreadState,
+        tcb_t, Arch_initContext, ThreadStateIdleThreadState, ThreadStateRunning,
+    },
     vspace::{
-        activate_kernel_vspace, arch_get_n_paging, map_kernel_window, paddr_to_pptr, pptr_to_paddr,
+        activate_kernel_vspace, arch_get_n_paging, create_it_address_space, map_it_frame_cap,
+        map_kernel_window, paddr_to_pptr, pptr_to_paddr, VMReadWrite,
     },
 };
 
@@ -243,7 +259,7 @@ pub fn maybe_alloc_extra_bi(cmp_size_bits: usize, extra_bi_size_bits: usize) {
     }
 }
 
-pub fn calcaulate_rootserver_size(it_v_reg: v_region_t, extra_bi_size_bits: usize) -> usize {
+pub fn calculate_rootserver_size(it_v_reg: v_region_t, extra_bi_size_bits: usize) -> usize {
     let mut size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS + seL4_SlotBits);
     size += BIT!(seL4_TCBBits);
     size += BIT!(seL4_PageBits);
@@ -255,7 +271,7 @@ pub fn calcaulate_rootserver_size(it_v_reg: v_region_t, extra_bi_size_bits: usiz
         0
     };
     size += BIT!(seL4_VSpaceBits);
-    return size + arch_get_n_paging(it_v_reg);
+    return size + arch_get_n_paging(it_v_reg) * BIT!(seL4_PageTableBits);
 }
 
 #[inline]
@@ -289,12 +305,12 @@ pub fn rootserver_max_size_bits(extra_bi_size_bits: usize) -> usize {
     }
 }
 
-pub fn create_rootserver_objects(start: usize, it_v_reg: v_region_t, extra_bi_size_bits: usize) {
+pub fn create_rootserver_objects(_start: usize, it_v_reg: v_region_t, extra_bi_size_bits: usize) {
     unsafe {
         let cnode_size_bits = CONFIG_ROOT_CNODE_SIZE_BITS + seL4_SlotBits;
         let max = rootserver_max_size_bits(extra_bi_size_bits);
 
-        let size = calcaulate_rootserver_size(it_v_reg, extra_bi_size_bits);
+        let size = calculate_rootserver_size(it_v_reg, extra_bi_size_bits);
         let layout = Layout::from_size_align(size, 4).ok().unwrap();
         let ptr: *mut u8 = alloc::alloc::alloc(layout);
         rootserver_mem.start = ptr as usize;
@@ -323,7 +339,7 @@ pub fn write_slot(_slot_ptr: *const cte_t, cap: *const cap_t) {
     unsafe {
         let slot_ptr = _slot_ptr as *mut cte_t;
         (*slot_ptr).cap = cap as *mut cap_t;
-        *(*slot_ptr).cteMDBNode = mdb_node_t::default();
+        (*slot_ptr).cteMDBNode = (&mdb_node_t::default()) as *const mdb_node_t as *mut mdb_node_t;
         (*slot_ptr).cteMDBNode =
             mdb_node_set_mdbRevocable((*slot_ptr).cteMDBNode, 1) as *mut mdb_node_t;
         (*slot_ptr).cteMDBNode =
@@ -340,7 +356,8 @@ pub fn create_root_cnode() -> *const cap_t {
             rootserver.cnode,
         );
         write_slot(
-            (rootserver.cnode + mem::size_of::<cte_t>() * seL4_CapInitThreadCNode) as *const cte_t,
+            (rootserver.cnode + (mem::size_of::<cte_t>() * seL4_CapInitThreadCNode))
+                as *const cte_t,
             cap,
         );
         cap
@@ -365,7 +382,7 @@ pub fn create_domain_cap(root_cnode_cap: *const cap_t) {
 #[inline]
 pub fn set_sie_mask(mask_high: usize) {
     unsafe {
-        let mut temp: usize;
+        let temp: usize;
         asm!("csrrs {0},sie,{1}",out(reg)temp,in(reg)mask_high);
     }
 }
@@ -380,7 +397,8 @@ pub fn provide_cap(root_cnode_cap: *const cap_t, cap: *const cap_t) -> bool {
             return false;
         }
         write_slot(
-            (rootserver.cnode + mem::size_of::<cte_t>() * ndks_boot.slot_pos_cur) as *const cte_t,
+            (cap_get_capPtr(root_cnode_cap) + mem::size_of::<cte_t>() * ndks_boot.slot_pos_cur)
+                as *const cte_t,
             cap,
         );
         ndks_boot.slot_pos_cur += 1;
@@ -388,13 +406,169 @@ pub fn provide_cap(root_cnode_cap: *const cap_t, cap: *const cap_t) -> bool {
     }
 }
 
+pub fn create_mapped_it_frame_cap(
+    pd_cap: *const cap_t,
+    pptr: usize,
+    vptr: usize,
+    asid: usize,
+    use_large: bool,
+    executable: bool,
+) -> *const cap_t {
+    let frame_size: usize;
+    if use_large {
+        frame_size = RISCVMegaPageBits;
+    } else {
+        frame_size = RISCVPageBits;
+    }
+
+    let cap = cap_frame_cap_new(asid, pptr, frame_size, VMReadWrite, 0, vptr);
+    map_it_frame_cap(pd_cap, cap);
+    cap
+}
+
+pub fn create_ipcbuf_frame_cap(
+    root_cnode_cap: *const cap_t,
+    pd_cap: *const cap_t,
+    vptr: usize,
+) -> *const cap_t {
+    unsafe {
+        clearMemory(rootserver.ipc_buf as *mut u8, PAGE_BITS);
+        let cap = create_mapped_it_frame_cap(pd_cap, rootserver.ipc_buf, vptr, 1, false, false);
+        write_slot(
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+                as *const cte_t,
+            cap,
+        );
+        cap
+    }
+}
+
+pub fn create_idle_thread() {
+    unsafe {
+        let state_size = mem::size_of::<thread_state_t>();
+        let state_layout = Layout::from_size_align(state_size, 4).ok().unwrap();
+        let state = alloc::alloc::alloc(state_layout) as *const thread_state_t;
+        thread_state_set_tsType(state as *mut thread_state_t, ThreadStateIdleThreadState);
+        let tcb_size = mem::size_of::<tcb_t>();
+        let tcb_layout = Layout::from_size_align(tcb_size, 4).ok().unwrap();
+        let tcb_ptr = alloc::alloc::alloc(tcb_layout) as *mut tcb_t;
+        println!("[kernel] create idle thread on :{}", tcb_ptr as usize);
+        let tcb = tcb_t {
+            tcbArch: arch_tcb_t::new(),
+            tcbState: state,
+            seL4_Fault_t: 0,
+            tcbLookupFailure: 0,
+            domain: 0,
+            tcbMCP: 0,
+            tcbPriority: 0,
+            tcbTimeSlice: 0,
+            tcbFaultHandler: 0,
+            tcbIPCBuffer: 0,
+            tcbSchedNext: 0,
+            tcbSchedPrev: 0,
+            tcbEPNext: 0,
+            tcbEPPrev: 0,
+            rootCap: [0 as *const cte_t; tcbCNodeEntries],
+            tcbName: String::from("idle_thread"),
+        };
+        *tcb_ptr = tcb;
+        ksIdleThread = tcb_ptr as usize;
+        configureIdleThread(tcb_ptr);
+    }
+}
+
+pub fn create_initial_thread(
+    root_cnode_cap: *const cap_t,
+    it_pd_cap: *const cap_t,
+    ui_v_entry: usize,
+    ipcbuf_vptr: usize,
+    ipcbuf_cap: *const cap_t,
+) -> *const tcb_t {
+    unsafe {
+        let tcb = rootserver.tcb as *mut tcb_t;
+        let cte_size = mem::size_of::<cte_t>() * tcbCNodeEntries;
+        let cte_layout = Layout::from_size_align(cte_size, 4).ok().unwrap();
+        let cte_ptr = alloc::alloc::alloc(cte_layout);
+        let mut rootCaps: [*const cte_t; tcbCNodeEntries] = [0 as *const cte_t; tcbCNodeEntries];
+        for i in 0..tcbCNodeEntries {
+            let ptr = (cte_ptr as usize + i * cte_size) as *mut cte_t;
+            (*ptr).cap = cap_null_cap_new() as *mut cap_t;
+            (*ptr).cteMDBNode = mdb_node_new(0, 0, 0, 0) as *mut mdb_node_t;
+            rootCaps[i] = (cte_ptr as usize + i * cte_size) as *mut cte_t;
+        }
+
+        (*tcb).rootCap = rootCaps;
+        (*tcb).tcbState = thread_state_new();
+        Arch_initContext((&(*tcb).tcbArch) as *const arch_tcb_t as *mut arch_tcb_t);
+        let dc_ret = deriveCap(
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+                as *const cte_t,
+            ipcbuf_cap,
+        );
+        cteInsert(
+            root_cnode_cap,
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadCNode * mem::size_of::<cte_t>())
+                as *const cte_t,
+            (*(rootserver.tcb as *const tcb_t)).rootCap[tcbCTable],
+        );
+        cteInsert(
+            it_pd_cap,
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadVspace * mem::size_of::<cte_t>())
+                as *const cte_t,
+            (*(rootserver.tcb as *const tcb_t)).rootCap[tcbVTable],
+        );
+        cteInsert(
+            dc_ret.cap,
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+                as *const cte_t,
+            (*(rootserver.tcb as *const tcb_t)).rootCap[tcbBuffer],
+        );
+        (*tcb).tcbIPCBuffer = ipcbuf_vptr;
+        (*tcb).tcbPriority = 255;
+        (*tcb).tcbMCP = 255;
+        (*tcb).domain = 0;
+        setNextPC(tcb, ui_v_entry);
+        println!("{}",(*tcb).tcbArch.registers[0]);
+        setThreadState(tcb, ThreadStateRunning);
+        ksCurDomain = 0;
+        let cap = cap_thread_cap_new(tcb as usize);
+        write_slot(
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadTCB * mem::size_of::<cte_t>())
+                as *const cte_t,
+            cap,
+        );
+        (*tcb).tcbName = String::from("rootserver");
+        tcb
+    }
+}
+
 pub fn try_inital_kernel() {
-    // traps::init();
-    // trap::init();
+    // map_kernel_window();
+    // activate_kernel_vspace();
+    traps::init();
     set_sie_mask(BIT!(SIE_SEIE) | BIT!(SIE_STIE));
-    // traps::enable_timer_interrupt();
-    // trap::enable_timer_interrupt();
-    // let size=calcaulate_rootserver_size(it_v_reg, extra_bi_size_bits);
-    // let root_cnode_cap = create_root_cnode();
-    // create_domain_cap(root_cnode_cap);
+    traps::enable_timer_interrupt();
+    let root_server_v_region = v_region_t {
+        start: 0x82000000,
+        end: 0x83000000,
+    };
+    create_rootserver_objects(0, root_server_v_region, 0);
+    let root_cnode_cap = create_root_cnode();
+    create_domain_cap(root_cnode_cap);
+    let it_pd_cap = create_it_address_space(root_cnode_cap, root_server_v_region);
+    let ipcbuf_vptr = 0x88000000;
+    let ui_v_entry = 0x81400000;
+    let ipcbuf_cap = create_ipcbuf_frame_cap(root_cnode_cap, it_pd_cap, ipcbuf_vptr);
+    create_idle_thread();
+    let initial = create_initial_thread(
+        root_cnode_cap,
+        it_pd_cap,
+        ui_v_entry,
+        ipcbuf_vptr,
+        ipcbuf_cap,
+    );
+    unsafe {
+        ksCurThread = initial as usize;
+    }
+    setRegister(initial as *mut tcb_t, 1, USER_STACK[0].get_sp());
 }

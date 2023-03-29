@@ -127,8 +127,8 @@ const t2: usize = 6;
 const s0: usize = 7;
 const s1: usize = 8;
 const a0: usize = 9;
-const capRegister: usize = 9;
-const badgeRegister: usize = 9;
+pub const capRegister: usize = 9;
+pub const badgeRegister: usize = 9;
 const a1: usize = 10;
 const a2: usize = 11;
 const a3: usize = 12;
@@ -150,8 +150,8 @@ const t3: usize = 27;
 const t4: usize = 28;
 const t5: usize = 29;
 const t6: usize = 30;
-const SCAUSE: usize = 31;
-const SSTATUS: usize = 32;
+pub const SCAUSE: usize = 31;
+pub const SSTATUS: usize = 32;
 pub const FaultIP: usize = 33;
 pub const NextIP: usize = 34;
 pub const n_contextRegisters: usize = 35;
@@ -170,7 +170,7 @@ static mut ksDomScheduleIdx: usize = 0;
 
 pub static mut ksCurThread: usize = 0;
 
-static mut ksIdleThread: usize = 0;
+pub static mut ksIdleThread: usize = 0;
 
 static mut ksSchedulerAction: usize = 0;
 
@@ -180,6 +180,12 @@ static mut ksReadyQueues: [tcb_queue_t; NUM_READY_QUEUES] =
 static mut ksReadyQueuesL2Bitmap: [[usize; L2_BITMAP_SIZE]; CONFIG_NUM_DOMAINS] =
     [[0; L2_BITMAP_SIZE]; CONFIG_NUM_DOMAINS];
 static mut ksReadyQueuesL1Bitmap: [usize; CONFIG_NUM_DOMAINS] = [0; CONFIG_NUM_DOMAINS];
+
+pub fn Arch_initContext(context: *mut arch_tcb_t) {
+    unsafe {
+        (*context).registers[SSTATUS] = 0x00000020;
+    }
+}
 
 #[inline]
 pub fn isStopped(thread: *const tcb_t) -> bool {
@@ -397,7 +403,7 @@ pub fn Arch_switchToThread(tcb: *const tcb_t) {
 pub fn Arch_configureIdleThread(tcb: *const tcb_t) {
     setRegister(tcb as *mut tcb_t, NextIP, idle_thread as usize);
     setRegister(tcb as *mut tcb_t, SSTATUS, SSTATUS_SPP | SSTATUS_SPIE);
-    // setRegister(tcb as *mut tcb_t, sp, KERNEL_STACK.get_sp());
+    setRegister(tcb as *mut tcb_t, sp, KERNEL_STACK.get_sp());
 }
 
 pub fn Arch_switchToIdleThread() {
@@ -414,7 +420,7 @@ pub fn setThreadState(tptr: *const tcb_t, ts: usize) {
     }
 }
 
-pub fn getReStartPc(thread: *const tcb_t) -> usize {
+pub fn getReStartPC(thread: *const tcb_t) -> usize {
     getRegister(thread, FaultIP)
 }
 
@@ -429,11 +435,12 @@ pub fn configureIdleThread(tcb: *const tcb_t) {
 
 pub fn activateThread() {
     unsafe {
+        assert!(ksCurThread != 0 && ksCurThread != 1);
         let thread = ksCurThread as *mut tcb_t;
         match thread_state_get_tsType((*thread).tcbState as *const thread_state_t) {
             ThreadStateRunning => return,
             ThreadStateRestart => {
-                let pc = getReStartPc(thread as *const tcb_t);
+                let pc = getReStartPC(thread as *const tcb_t);
                 setNextPC(thread, pc);
                 setThreadState(thread as *const tcb_t, ThreadStateRunning);
             }
@@ -667,7 +674,7 @@ pub fn messageInfoFromWord_raw(w: usize) -> seL4_MessageInfo_t {
 }
 
 pub fn messageInfoFromWord(w: usize) -> seL4_MessageInfo_t {
-    let mut mi = seL4_MessageInfo_t { words: [w] };
+    let mi = seL4_MessageInfo_t { words: [w] };
     let len = seL4_MessageInfo_ptr_get_length((&mi) as *const seL4_MessageInfo_t);
     if len > seL4_MsgMaxLength {
         seL4_MessageInfo_ptr_set_length(
@@ -705,8 +712,8 @@ pub fn copyMRs(
     }
     while i < n {
         unsafe {
-            let mut recvPtr = (recvBuf + i + 1) as *const usize as *mut usize;
-            let mut sendPtr = (sendBuf + i + 1) as *const usize as *mut usize;
+            let recvPtr = (recvBuf + i + 1) as *const usize as *mut usize;
+            let sendPtr = (sendBuf + i + 1) as *const usize as *mut usize;
             *recvPtr = *sendPtr;
         }
     }

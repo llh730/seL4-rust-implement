@@ -32,17 +32,17 @@ pub enum vm_page_size_t {
     RISCV_Giga_Page,
     RISCV_Tera_Page,
 }
-const RISCV_4K_Page:usize=0;
-const RISCV_Mega_Page:usize=1;
-const RISCV_Giga_Page:usize=2;
-const RISCV_Tera_Page:usize=3;
+pub const RISCV_4K_Page: usize = 0;
+pub const RISCV_Mega_Page: usize = 1;
+pub const RISCV_Giga_Page: usize = 2;
+pub const RISCV_Tera_Page: usize = 3;
 
-const VMKernelOnly: usize = 1;
-const VMReadOnly: usize = 2;
-const VMReadWrite: usize = 3;
+pub const VMKernelOnly: usize = 1;
+pub const VMReadOnly: usize = 2;
+pub const VMReadWrite: usize = 3;
 
 #[inline]
-pub fn pageBitsForSize(page_size:usize) -> usize {
+pub fn pageBitsForSize(page_size: usize) -> usize {
     match page_size {
         RISCV_4K_Page => RISCVPageBits,
         RISCV_Mega_Page => RISCVMegaPageBits,
@@ -109,12 +109,10 @@ pub unsafe fn sfence() {
 #[no_mangle]
 pub fn setVSpaceRoot(addr: paddr_t, asid: usize) {
     let satp = satp_new(8usize, asid, addr >> 12);
+    let temp: usize = 1 << 13;
     unsafe {
-        let mut temp: usize = 1 << 13;
-        unsafe {
-            satp::write(satp.words);
-            sfence();
-        }
+        satp::write(satp.words);
+        sfence();
     }
 }
 
@@ -151,7 +149,6 @@ pub fn pte_next(phys_addr: usize, is_leaf: bool) -> pte_t {
     let read = is_leaf as u8;
     let write = read;
     let exec = read;
-    let index = 0;
     return pte_new(
         ppn,
         0,                /* sw */
@@ -337,11 +334,12 @@ pub fn create_it_pt_cap(
 }
 
 pub fn copyGlobalMappings(Lvl1pt: usize) {
-    let i: usize = RISCV_GET_PT_INDEX(PPTR_BASE, 0);
+    let mut i: usize = RISCV_GET_PT_INDEX(PPTR_BASE, 0);
     while i < BIT!(PT_INDEX_BITS) {
         unsafe {
             let newLvl1pt = (Lvl1pt + i * 8) as *mut usize;
             *newLvl1pt = kernel_root_pageTable[i];
+            i += 1;
         }
     }
 }

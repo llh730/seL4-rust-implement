@@ -27,41 +27,41 @@ pub fn enable_timer_interrupt() {
     }
 }
 
-#[no_mangle]
-pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
-    let scause = scause::read();
-    let stval = stval::read();
-    match scause.cause() {
-        Trap::Exception(Exception::UserEnvCall) => {
-            cx.sepc += 4;
-            cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
-        }
-        Trap::Exception(Exception::StoreFault)
-        | Trap::Exception(Exception::StorePageFault)
-        | Trap::Exception(Exception::InstructionFault)
-        | Trap::Exception(Exception::InstructionPageFault)
-        | Trap::Exception(Exception::LoadFault)
-        | Trap::Exception(Exception::LoadPageFault) => {
-            // page fault exit code
-            exit_current_and_run_next();
-        }
-        Trap::Exception(Exception::IllegalInstruction) => {
-            error!("[kernel] IllegalInstruction in application, core dumped.");
-            exit_current_and_run_next();
-        }
-        Trap::Interrupt(Interrupt::SupervisorTimer) => {
-            set_next_trigger();
-            suspend_current_and_run_next();
-        }
-        _ => {
-            panic!(
-                "Unsupported trap {:?}, stval = {:#x}!",
-                scause.cause(),
-                stval
-            );
-        }
-    }
-    cx
-}
+// #[no_mangle]
+// pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
+//     let scause = scause::read();
+//     let stval = stval::read();
+//     match scause.cause() {
+//         Trap::Exception(Exception::UserEnvCall) => {
+//             cx.sepc += 4;
+//             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+//         }
+//         Trap::Exception(Exception::StoreFault)
+//         | Trap::Exception(Exception::StorePageFault)
+//         | Trap::Exception(Exception::InstructionFault)
+//         | Trap::Exception(Exception::InstructionPageFault)
+//         | Trap::Exception(Exception::LoadFault)
+//         | Trap::Exception(Exception::LoadPageFault) => {
+//             // page fault exit code
+//             exit_current_and_run_next();
+//         }
+//         Trap::Exception(Exception::IllegalInstruction) => {
+//             error!("[kernel] IllegalInstruction in application, core dumped.");
+//             exit_current_and_run_next();
+//         }
+//         Trap::Interrupt(Interrupt::SupervisorTimer) => {
+//             set_next_trigger();
+//             suspend_current_and_run_next();
+//         }
+//         _ => {
+//             panic!(
+//                 "Unsupported trap {:?}, stval = {:#x}!",
+//                 scause.cause(),
+//                 stval
+//             );
+//         }
+//     }
+//     cx
+// }
 
 pub use context::TrapContext;

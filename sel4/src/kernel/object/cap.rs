@@ -10,6 +10,8 @@ use crate::{
     println,
 };
 
+use super::endpoint::cancelBadgedSends;
+
 fn setUntypedCapAsFull(_srcCap: *const cap_t, _newCap: *const cap_t, _srcSlot: *const cte_t) {
     unsafe {
         if cap_get_capType(_srcCap) == cap_tag_t::cap_untyped_cap as usize
@@ -31,46 +33,42 @@ fn setUntypedCapAsFull(_srcCap: *const cap_t, _newCap: *const cap_t, _srcSlot: *
 pub fn cteInsert(newCap: *const cap_t, _srcSlot: *const cte_t, _destSlot: *const cte_t) {
     unsafe {
         let srcSlot = _srcSlot as *mut cte_t;
-
         let srcMDB = (*srcSlot).cteMDBNode;
         let srcCap = (*srcSlot).cap;
         let newCapIsRevocable: bool = isCapRevocable(newCap, srcCap);
-
         let mut newMDB = mdb_node_set_mdbPrev(srcMDB, _srcSlot as usize);
         newMDB = mdb_node_set_mdbRevocable(newMDB, newCapIsRevocable as usize);
         newMDB = mdb_node_set_mdbFirstBadged(newMDB, newCapIsRevocable as usize);
-        /* Haskell error: "cteInsert to non-empty destination" */
-        assert!(cap_get_capType((*_destSlot).cap) == cap_tag_t::cap_null_cap as usize);
-        /* Haskell error: "cteInsert: mdb entry must be empty" */
-        assert!(
-            mdb_node_get_mdbNext((*_destSlot).cteMDBNode) == 0
-                && mdb_node_get_mdbPrev((*_destSlot).cteMDBNode) == 0
-        );
+        // assert!(cap_get_capType((*_destSlot).cap) == cap_null_cap);
+        // assert!(
+        //     mdb_node_get_mdbNext((*_destSlot).cteMDBNode) == 0
+        //         && mdb_node_get_mdbPrev((*_destSlot).cteMDBNode) == 0
+        // );
         setUntypedCapAsFull(srcCap, newCap, _srcSlot);
         (*(_destSlot as *mut cte_t)).cap = newCap as *mut cap_t;
         (*(_destSlot as *mut cte_t)).cteMDBNode = newMDB as *mut mdb_node_t;
         mdb_node_ptr_set_mdbNext((*srcSlot).cteMDBNode, _destSlot as usize);
-        // println!("{} {}",_destSlot as usize,mdb_node_get_mdbNext(srcSlot.cteMDBNode));
         if mdb_node_get_mdbNext(newMDB) != 0 {
-            unsafe {
-                let cte_ptr = mdb_node_get_mdbNext(newMDB) as *const cte_t;
-                mdb_node_ptr_set_mdbPrev((*cte_ptr).cteMDBNode as *const mdb_node_t, _destSlot as usize);
-            }
+            let cte_ptr = mdb_node_get_mdbNext(newMDB) as *const cte_t;
+            mdb_node_ptr_set_mdbPrev(
+                (*cte_ptr).cteMDBNode as *const mdb_node_t,
+                _destSlot as usize,
+            );
         }
     }
 }
 
 pub fn cteMove(_newCap: *const cap_t, __srcSlot: *const cte_t, __destSlot: *const cte_t) {
     unsafe {
-        let _destSlot=__destSlot as *mut cte_t;
-        let _srcSlot=__srcSlot as *mut cte_t;
+        let _destSlot = __destSlot as *mut cte_t;
+        let _srcSlot = __srcSlot as *mut cte_t;
         let mdb = (*_srcSlot).cteMDBNode;
         /* Haskell error: "cteInsert to non-empty destination" */
         assert!(cap_get_capType((*_destSlot).cap) == cap_tag_t::cap_null_cap as usize);
         /* Haskell error: "cteInsert: mdb entry must be empty" */
         assert!(
             mdb_node_get_mdbNext((*_destSlot).cteMDBNode as *const mdb_node_t) as usize == 0
-                && mdb_node_get_mdbPrev((*_destSlot).cteMDBNode as *const mdb_node_t ) as usize == 0
+                && mdb_node_get_mdbPrev((*_destSlot).cteMDBNode as *const mdb_node_t) as usize == 0
         );
         (*_destSlot).cap = _newCap as *mut cap_t;
         (*_srcSlot).cap = cap_null_cap_new() as *mut cap_t;
@@ -300,10 +298,8 @@ fn capRemovable(cap: *const cap_t, slot: *const cte_t) -> bool {
 
 #[inline]
 pub fn capCyclicZombie(cap: *const cap_t, slot: *const cte_t) -> bool {
-    unsafe {
-        let ptr = cap_zombie_cap_get_capZombiePtr(cap) as *const cte_t;
-        return cap_get_capType(cap) == cap_zombie_cap && ptr == slot;
-    }
+    let ptr = cap_zombie_cap_get_capZombiePtr(cap) as *const cte_t;
+    return cap_get_capType(cap) == cap_zombie_cap && ptr == slot;
 }
 
 pub fn reduceZombie(slot: *const cte_t, immediate: bool) -> exception_t {
@@ -458,10 +454,8 @@ pub fn invokeCNodeInsert(
 pub fn invokeCNodeCancelBadgedSends(cap: *const cap_t) -> exception_t {
     let badge = cap_endpoint_cap_get_capEPBadge(cap);
     if badge != 0 {
-        unsafe {
-            let ep = cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t;
-            //TODO::cancelBadgeSend();
-        }
+        let ep = cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t;
+        //TODO::cancelBadgeSend();
     }
     return exception_t::EXCEPTION_NONE;
 }

@@ -60,6 +60,12 @@ SECTIONS
         /* large data such as the globals frame and global PD */
         *(.bss.aligned)
     }
+
+    ._idle_thread :
+    {
+        *(._idle_thread)
+    }
+
     . = . + 4K;
     . = ALIGN(4K);
     skernel_stack_alloc = .;

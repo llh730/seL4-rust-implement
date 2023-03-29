@@ -12,7 +12,6 @@ pub fn init_heap() {
             .lock()
             .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
     }
-    
 }
 
 #[alloc_error_handler]

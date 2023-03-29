@@ -18,6 +18,7 @@ trap_entry:
 
   csrrw t0, sscratch, t0
   sd ra, (0*8)(t0)
+  sd sp, (1*8)(t0)
   sd gp, (2*8)(t0)
   sd tp, (3*8)(t0)
   sd t1, (5*8)(t0)
@@ -56,12 +57,11 @@ trap_entry:
   csrr s0, scause
   sd s0, (31*8)(t0)
 
-csrr x1,  sepc
+  csrr x1,  sepc
   sd   x1, (33*8)(t0)
 
-
-
   la sp,ekernel_stack_alloc
+
 .option push
 .option norelax
   la gp, __global_pointer$
