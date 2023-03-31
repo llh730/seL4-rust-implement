@@ -1,3 +1,4 @@
+use core::alloc::Layout;
 use core::arch::asm;
 use core::cell::RefCell;
 use core::mem;
@@ -6,7 +7,9 @@ use riscv::register::satp;
 
 use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
 
-use super::boot::{get_n_paging, it_alloc_paging, provide_cap, rootserver, v_region_t, write_slot};
+use super::boot::{
+    get_n_paging, it_alloc_paging, p_region_t, provide_cap, rootserver, v_region_t, write_slot,
+};
 use super::object::structures::{
     cap_capType_equals, cap_frame_cap_get_capFBasePtr, cap_frame_cap_get_capFIsDevice,
     cap_frame_cap_get_capFMappedAddress, cap_frame_cap_get_capFSize,
@@ -109,7 +112,7 @@ pub unsafe fn sfence() {
 #[no_mangle]
 pub fn setVSpaceRoot(addr: paddr_t, asid: usize) {
     let satp = satp_new(8usize, asid, addr >> 12);
-    let temp: usize = 1 << 13;
+    // println!("addr:{:#x}",addr);
     unsafe {
         satp::write(satp.words);
         sfence();
@@ -156,6 +159,26 @@ pub fn pte_next(phys_addr: usize, is_leaf: bool) -> pte_t {
         is_leaf as usize, /* accessed (leaf)/reserved (non-leaf) */
         1,                /* global */
         0,                /* user (leaf)/reserved (non-leaf) */
+        exec as usize,    /* execute */
+        write as usize,   /* write */
+        read as usize,    /* read */
+        1,                /* valid */
+    );
+}
+
+pub fn user_pte_next(phys_addr: usize, is_leaf: bool) -> pte_t {
+    let ppn = (phys_addr >> 12) as usize;
+
+    let read = is_leaf as u8;
+    let write = read;
+    let exec = read;
+    return pte_new(
+        ppn,
+        0,                /* sw */
+        is_leaf as usize, /* dirty (leaf)/reserved (non-leaf) */
+        is_leaf as usize, /* accessed (leaf)/reserved (non-leaf) */
+        1,                /* global */
+        1,                /* user (leaf)/reserved (non-leaf) */
         exec as usize,    /* execute */
         write as usize,   /* write */
         read as usize,    /* read */
@@ -217,18 +240,6 @@ pub fn map_kernel_window() {
         pptr += RISCV_GET_LVL_PGSIZE(1);
         paddr += RISCV_GET_LVL_PGSIZE(1);
     }
-    // extern "C" {
-    //     fn stext();
-    //     fn etext();
-    // }
-    // unsafe {
-    //     let mut text_ptr = stext as usize;
-    //     while text_ptr < etext as usize {
-    //         kernel_root_pageTable[RISCV_GET_PT_INDEX(text_ptr, 0)] =
-    //             pte_next(text_ptr as usize, true);
-    //         text_ptr+=RISCV_GET_LVL_PGSIZE(0);
-    //     }
-    // }
 }
 
 pub fn activate_kernel_vspace() {
@@ -243,11 +254,10 @@ pub fn map_it_pt_cap(_vspace_cap: *const cap_t, _pt_cap: *const cap_t) {
     let pt: usize = cap_get_capPtr(_pt_cap);
 
     let pt_ret = lookupPTSlot(lvl1pt, vptr);
-
     let targetSlot = pt_ret.ptSlot as *mut usize;
     unsafe {
         *targetSlot = pte_new(
-            pptr_to_paddr(pt) >> seL4_PageBits,
+            pt >> seL4_PageBits,
             0, /* sw */
             0, /* dirty (reserved non-leaf) */
             0, /* accessed (reserved non-leaf) */
@@ -259,6 +269,10 @@ pub fn map_it_pt_cap(_vspace_cap: *const cap_t, _pt_cap: *const cap_t) {
             1, /* valid */
         );
         sfence();
+        // println!(
+        //     "targetSlot:{:#x} after write:{:#x}",
+        //     targetSlot as usize, *targetSlot
+        // );
     }
 }
 
@@ -266,13 +280,12 @@ pub fn map_it_frame_cap(_vspace_cap: *const cap_t, _frame_cap: *const cap_t) {
     let vptr = cap_frame_cap_get_capFMappedAddress(_frame_cap);
     let lvl1pt = cap_get_capPtr(_vspace_cap);
     let frame_pptr: usize = cap_get_capPtr(_frame_cap);
-
     let pt_ret = lookupPTSlot(lvl1pt, vptr);
 
     let targetSlot = pt_ret.ptSlot as *mut usize;
     unsafe {
         *targetSlot = pte_new(
-            pptr_to_paddr(frame_pptr) >> seL4_PageBits,
+            frame_pptr >> seL4_PageBits,
             0, /* sw */
             1, /* dirty (reserved non-leaf) */
             1, /* accessed (reserved non-leaf) */
@@ -284,6 +297,10 @@ pub fn map_it_frame_cap(_vspace_cap: *const cap_t, _frame_cap: *const cap_t) {
             1, /* valid */
         );
         sfence();
+        // println!(
+        //     "frame cap targetSlot:{:#x} *targetSlot:{:#x}",
+        //     targetSlot as usize, *targetSlot
+        // );
     }
 }
 
@@ -304,16 +321,33 @@ pub fn getPPtrFromHWPTE(pte: usize) -> usize {
 pub fn lookupPTSlot(lvl1pt: usize, vptr: vptr_t) -> lookupPTSlot_ret_t {
     let mut level = CONFIG_PT_LEVELS - 1;
     let mut pt = lvl1pt;
+    // println!("vptr:{:#x}", vptr);
     let mut ret = lookupPTSlot_ret_t {
         ptBitsLeft: PT_INDEX_BITS * level + seL4_PageBits,
-        ptSlot: pt + ((vptr >> (PT_INDEX_BITS * level + seL4_PageBits)) & MASK!(PT_INDEX_BITS)),
+        ptSlot: pt + ((vptr >> (PT_INDEX_BITS * level + seL4_PageBits)) & MASK!(PT_INDEX_BITS)) * 8,
     };
-
+    // unsafe {
+    //     println!(
+    //         "ptSlot:{:#x} , isPTEPageTable:{},*ptSlot:{:#x}",
+    //         ret.ptSlot,
+    //         isPTEPageTable(ret.ptSlot),
+    //         *(ret.ptSlot as *const usize)
+    //     );
+    // }
     while isPTEPageTable(ret.ptSlot) && level > 0 {
+        // unsafe {
+        //     println!(
+        //         "i:{} ptSlot:{:#x} , isPTEPageTable:{},*ptSlot:{:#x}",
+        //         level,
+        //         ret.ptSlot,
+        //         isPTEPageTable(ret.ptSlot),
+        //         *(ret.ptSlot as *const usize)
+        //     );
+        // }
         level -= 1;
         ret.ptBitsLeft -= PT_INDEX_BITS;
-        pt = getPPtrFromHWPTE(ret.ptSlot);
-        ret.ptSlot = pt + ((vptr >> ret.ptBitsLeft) & MASK!(PT_INDEX_BITS));
+        pt = pte_ptr_get_ppn(ret.ptSlot as *const usize) << seL4_PageTableBits;
+        ret.ptSlot = pt + ((vptr >> ret.ptBitsLeft) & MASK!(PT_INDEX_BITS)) * 8;
     }
     ret
 }
@@ -333,8 +367,17 @@ pub fn create_it_pt_cap(
     return cap;
 }
 
+pub fn create_it_frame_cap(vspace_cap: *const cap_t,
+    pptr: pptr_t,
+    vptr: vptr_t,
+    asid: usize)->*const cap_t{
+    let cap=cap_frame_cap_new(asid,pptr,12,VMReadWrite,0,vptr);
+    map_it_frame_cap(vspace_cap, cap);
+    cap
+}
+
 pub fn copyGlobalMappings(Lvl1pt: usize) {
-    let mut i: usize = RISCV_GET_PT_INDEX(PPTR_BASE, 0);
+    let mut i: usize = RISCV_GET_PT_INDEX(0x80000000, 0);
     while i < BIT!(PT_INDEX_BITS) {
         unsafe {
             let newLvl1pt = (Lvl1pt + i * 8) as *mut usize;
@@ -452,12 +495,19 @@ pub fn setVMRoot(thread: *mut tcb_t) {
         }
         let lvl1pt = cap_page_table_cap_get_capPTBasePtr(threadRoot);
         let asid = cap_page_table_cap_get_capPTMappedASID(threadRoot);
-        let find_ret = findVSpaceForASID(asid);
-        if find_ret.status != exception_t::EXCEPTION_NONE || find_ret.vspace_root != lvl1pt {
-            setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
-            return;
-        }
-        setVSpaceRoot(pptr_to_paddr(lvl1pt), asid);
+        // let find_ret = findVSpaceForASID(asid);
+        // if find_ret.status != exception_t::EXCEPTION_NONE || find_ret.vspace_root != lvl1pt {
+        //     setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
+        //     return;
+        // }
+        setVSpaceRoot(lvl1pt, asid);
+        // let slot = lookupPTSlot(lvl1pt, 0xc0000000);
+        // println!(
+        //     "lvl1pt:{:#x} ,slot:{:#x}, *slot:{:#x}",
+        //     lvl1pt,
+        //     slot.ptSlot,
+        //     *(slot.ptSlot as *const usize)
+        // );
     }
 }
 
@@ -478,31 +528,115 @@ pub fn arch_get_n_paging(it_v_reg: v_region_t) -> usize {
 //     }
 // }
 
-pub fn create_it_address_space(root_cnode_cap: *const cap_t, it_v_reg: v_region_t) -> *const cap_t {
+pub fn create_it_address_space(
+    root_cnode_cap: *const cap_t,
+    it_v_reg: v_region_t,
+    vspace: usize,
+) -> *const cap_t {
     unsafe {
-        copyGlobalMappings(rootserver.vspace);
-        let lvl1pt_cap = cap_page_table_cap_new(IT_ASID, rootserver.vspace, 1, rootserver.vspace);
+        copyGlobalMappings(vspace);
+        let lvl1pt_cap = cap_page_table_cap_new(IT_ASID, vspace, 1, vspace);
         write_slot(
             (rootserver.cnode + mem::size_of::<cte_t>() * seL4_CapInitThreadVspace) as *const cte_t,
             lvl1pt_cap,
         );
-
         let mut i = 0;
         while i < CONFIG_PT_LEVELS - 1 {
             let mut pt_vptr = ROUND_DOWN!(it_v_reg.start, RISCV_GET_LVL_PGSIZE_BITS(i));
             while pt_vptr < it_v_reg.end {
-                pt_vptr += RISCV_GET_LVL_PGSIZE(i);
                 if !provide_cap(
                     root_cnode_cap,
                     create_it_pt_cap(lvl1pt_cap, it_alloc_paging(), pt_vptr, IT_ASID),
                 ) {
                     return cap_null_cap_new();
                 }
+                pt_vptr += RISCV_GET_LVL_PGSIZE(i);
             }
             i += 1;
         }
         lvl1pt_cap
     }
+}
+
+pub fn create_address_space_unalloced(
+    root_cnode_cap: *const cap_t,
+    it_v_reg: v_region_t,
+    vspace: usize,
+) -> *const cap_t {
+    copyGlobalMappings(vspace);
+    let lvl1pt_cap = cap_page_table_cap_new(2, vspace, 1, vspace);
+    let n = arch_get_n_paging(it_v_reg);
+    let size = n * PAGE_SIZE;
+    let layout = Layout::from_size_align(size, 4).ok().unwrap();
+    let ptr1: usize;
+    unsafe {
+        ptr1 = alloc::alloc::alloc(layout) as usize;
+    }
+    let mut i = 0;
+    let mut cnt = seL4_NumInitialCaps;
+    while i < CONFIG_PT_LEVELS - 1 {
+        let mut pt_vptr = ROUND_DOWN!(it_v_reg.start, RISCV_GET_LVL_PGSIZE_BITS(i));
+        let mut ptr = ptr1;
+        while pt_vptr < it_v_reg.end {
+            write_slot(
+                (cap_get_capPtr(root_cnode_cap) + mem::size_of::<cte_t>() * cnt) as *const cte_t,
+                create_it_pt_cap(lvl1pt_cap, ptr, pt_vptr, IT_ASID),
+            );
+            ptr += RISCV_GET_LVL_PGSIZE(i);
+            pt_vptr += RISCV_GET_LVL_PGSIZE(i);
+            cnt += 1;
+        }
+        i += 1;
+    }
+    lvl1pt_cap
+}
+
+pub fn create_address_space_alloced(
+    cnode: usize,
+    root_cnode_cap: *const cap_t,
+    it_v_reg: v_region_t,
+    it_p_reg: p_region_t,
+    vspace: usize,
+) -> *const cap_t {
+    copyGlobalMappings(vspace);
+    let lvl1pt_cap = cap_page_table_cap_new(0, vspace, 1, vspace);
+    write_slot(
+        (cnode + mem::size_of::<cte_t>() * seL4_CapInitThreadVspace) as *const cte_t,
+        lvl1pt_cap,
+    );
+    let mut allocated = vspace;
+    let mut i = 0;
+    let mut cnt = seL4_NumInitialCaps + 20;
+    while i < CONFIG_PT_LEVELS - 1 {
+        let mut pt_vptr = ROUND_DOWN!(it_v_reg.start, RISCV_GET_LVL_PGSIZE_BITS(i));
+        allocated += BIT!(seL4_PageTableBits);
+        while pt_vptr < it_v_reg.end {
+            write_slot(
+                (cap_get_capPtr(root_cnode_cap) + mem::size_of::<cte_t>() * cnt) as *const cte_t,
+                create_it_pt_cap(lvl1pt_cap, allocated, pt_vptr, 0),
+            );
+            pt_vptr += RISCV_GET_LVL_PGSIZE(i);
+            cnt += 1;
+        }
+        i += 1;
+    }
+
+    let mut pt_vptr = ROUND_DOWN!(it_v_reg.start, RISCV_GET_LVL_PGSIZE_BITS(2));
+    let mut ptr: usize = ROUND_DOWN!(it_p_reg.start, RISCV_GET_LVL_PGSIZE_BITS(2));
+    while ptr < it_p_reg.end {
+        // println!("ptr :{:#x} , vptr:{:#x}", ptr, pt_vptr);
+        unsafe {
+            let target_slot = lookupPTSlot(vspace, pt_vptr).ptSlot as *mut usize;
+            *target_slot = user_pte_next(ptr, true);
+            // println!(
+            //     "slot:{:#x}, *target_slot:{:#x}",
+            //     target_slot as usize, *target_slot
+            // );
+        }
+        pt_vptr += RISCV_GET_LVL_PGSIZE(2);
+        ptr += RISCV_GET_LVL_PGSIZE(2);
+    }
+    lvl1pt_cap
 }
 
 pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> usize {
@@ -525,3 +659,8 @@ pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> usize {
         0
     }
 }
+
+
+// 0x8021c000
+// 0x8021d000
+// 0x8021e000

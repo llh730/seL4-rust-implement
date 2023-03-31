@@ -9,7 +9,7 @@ use crate::{
     },
     elfloader::KERNEL_STACK,
     kernel::object::objecttype::cap_reply_cap,
-    BIT, MASK,
+    BIT, MASK, println,
 };
 use alloc::string::String;
 use core::arch::asm;
@@ -117,8 +117,8 @@ pub struct dschedule {
     length: usize,
 }
 
-const ra: usize = 0;
-const sp: usize = 1;
+pub const ra: usize = 0;
+pub const sp: usize = 1;
 const gp: usize = 2;
 const tp: usize = 3;
 const t0: usize = 4;
@@ -183,7 +183,7 @@ static mut ksReadyQueuesL1Bitmap: [usize; CONFIG_NUM_DOMAINS] = [0; CONFIG_NUM_D
 
 pub fn Arch_initContext(context: *mut arch_tcb_t) {
     unsafe {
-        (*context).registers[SSTATUS] = 0x00000020;
+        (*context).registers[SSTATUS] = 0x00040020;
     }
 }
 
@@ -601,16 +601,19 @@ pub fn schedule() {
                 let fastfail = ksCurThread == ksIdleThread
                     || (*candidate).tcbPriority < (*(ksCurThread as *const tcb_t)).tcbPriority;
                 if fastfail && !isHighestPrio(ksCurDomain, (*candidate).tcbPriority) {
+                    println!("in fast fail :{}",fastfail);
                     tcbSchedEnqueue(candidate as *mut tcb_t);
                     ksSchedulerAction = SchedulerAction_ChooseNewThread;
                     scheduleChooseNewThread();
                 } else if was_runnable
                     && (*candidate).tcbPriority == (*(ksCurThread as *const tcb_t)).tcbPriority
                 {
+                    println!("in runnable:{}",was_runnable);
                     tcbSchedAppend(candidate as *mut tcb_t);
                     ksSchedulerAction = SchedulerAction_ChooseNewThread;
                     scheduleChooseNewThread();
                 } else {
+                    println!("in out");
                     switchToThread(candidate);
                 }
             }

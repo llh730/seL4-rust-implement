@@ -1,6 +1,6 @@
 use core::{alloc::Layout, mem};
 
-use alloc::{string::String};
+use alloc::string::String;
 
 use crate::{
     config::{
@@ -8,14 +8,13 @@ use crate::{
         USER_STACK_SIZE,
     },
     kernel::{
-        object::{
-            structures::{
-                cte_t, thread_state_get_tsType, thread_state_set_tsType, thread_state_t,
-            },
+        boot::p_region_t,
+        object::structures::{
+            cte_t, thread_state_get_tsType, thread_state_set_tsType, thread_state_t,
         },
         thread::{
-            arch_tcb_t, ksCurThread, tcb_t,  ThreadStateInactive, 
-            ThreadStateRunning, ThreadStateExited,
+            arch_tcb_t, ksCurThread, tcb_t, ThreadStateExited, ThreadStateInactive,
+            ThreadStateRunning,
         },
     },
     println,
@@ -73,6 +72,37 @@ pub fn get_num_app() -> usize {
         fn _num_app();
     }
     unsafe { (_num_app as usize as *const usize).read_volatile() }
+}
+
+pub fn get_app_data(app_id: usize) -> &'static [u8] {
+    extern "C" {
+        fn _num_app();
+    }
+    let num_app_ptr = _num_app as usize as *const usize;
+    let num_app = get_num_app();
+    let app_start = unsafe { core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1) };
+    assert!(app_id < num_app);
+    unsafe {
+        core::slice::from_raw_parts(
+            app_start[app_id] as *const u8,
+            app_start[app_id + 1] - app_start[app_id],
+        )
+    }
+}
+
+pub fn get_app_phys_addr(app_id: usize) -> p_region_t {
+    extern "C" {
+        fn _num_app();
+        fn app_0_start();
+    }
+    let num_app_ptr = _num_app as usize as *const usize;
+    let num_app = get_num_app();
+    let app_start = unsafe { core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1) };
+    assert!(app_id < num_app);
+    p_region_t {
+        start: app_start[app_id] as usize,
+        end: app_start[app_id + 1] as usize,
+    }
 }
 
 pub fn load_apps() {
@@ -170,7 +200,6 @@ pub fn mark_current_suspended() {
         );
     }
 }
-
 
 pub fn mark_current_exited() {
     unsafe {

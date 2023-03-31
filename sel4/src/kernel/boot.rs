@@ -1,10 +1,11 @@
 use core::{
     alloc::Layout,
     arch::{self, asm},
-    mem,
+    mem::{self, size_of},
 };
 
 use alloc::{format, string::String};
+use xmas_elf::program::SegmentData;
 
 use crate::{
     config::{
@@ -13,10 +14,17 @@ use crate::{
         seL4_PageBits, seL4_PageTableBits, seL4_SlotBits, seL4_TCBBits, seL4_VSpaceBits, tcbBuffer,
         tcbCNodeEntries, tcbCTable, tcbVTable, RISCVMegaPageBits, RISCVPageBits,
         BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG,
-        PAGE_BITS, SIE_SEIE, SIE_STIE,
+        PAGE_BITS, PAGE_SIZE, SIE_SEIE, SIE_STIE, USER_STACK_SIZE,
     },
-    kernel::{object::structures::{cap_null_cap_new, mdb_node_new, thread_state_new}, thread::configureIdleThread},
-    println, traps, BIT, ROUND_DOWN, ROUND_UP, elfloader::USER_STACK,
+    elfloader::{get_app_data, get_app_phys_addr, get_num_app, USER_STACK},
+    kernel::{
+        object::structures::{
+            cap_frame_cap_get_capFMappedAddress, cap_null_cap_new, mdb_node_new, thread_state_new,
+        },
+        thread::{configureIdleThread, SSTATUS},
+        vspace::{create_address_space_alloced, setVMRoot},
+    },
+    println, traps, BIT, ROUND_DOWN, ROUND_UP,
 };
 
 use super::{
@@ -31,7 +39,7 @@ use super::{
     },
     thread::{
         arch_tcb_t, ksCurDomain, ksCurThread, ksIdleThread, setNextPC, setRegister, setThreadState,
-        tcb_t, Arch_initContext, ThreadStateIdleThreadState, ThreadStateRunning,
+        sp, tcb_t, Arch_initContext, ThreadStateIdleThreadState, ThreadStateRunning,
     },
     vspace::{
         activate_kernel_vspace, arch_get_n_paging, create_it_address_space, map_it_frame_cap,
@@ -420,13 +428,12 @@ pub fn create_mapped_it_frame_cap(
     } else {
         frame_size = RISCVPageBits;
     }
-
     let cap = cap_frame_cap_new(asid, pptr, frame_size, VMReadWrite, 0, vptr);
     map_it_frame_cap(pd_cap, cap);
     cap
 }
 
-pub fn create_ipcbuf_frame_cap(
+pub fn create_initial_ipcbuf_frame_cap(
     root_cnode_cap: *const cap_t,
     pd_cap: *const cap_t,
     vptr: usize,
@@ -441,6 +448,22 @@ pub fn create_ipcbuf_frame_cap(
         );
         cap
     }
+}
+
+pub fn create_ipcbuf_frame_cap(
+    root_cnode_cap: *const cap_t,
+    pd_cap: *const cap_t,
+    vptr: usize,
+    ipc_buf: usize,
+) -> *const cap_t {
+    clearMemory(ipc_buf as *mut u8, PAGE_BITS);
+    let cap = create_mapped_it_frame_cap(pd_cap, ipc_buf, vptr, 0, false, false);
+    write_slot(
+        (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+            as *const cte_t,
+        cap,
+    );
+    cap
 }
 
 pub fn create_idle_thread() {
@@ -478,14 +501,16 @@ pub fn create_idle_thread() {
 }
 
 pub fn create_initial_thread(
+    thread: usize,
     root_cnode_cap: *const cap_t,
     it_pd_cap: *const cap_t,
     ui_v_entry: usize,
     ipcbuf_vptr: usize,
     ipcbuf_cap: *const cap_t,
+    name: String,
 ) -> *const tcb_t {
     unsafe {
-        let tcb = rootserver.tcb as *mut tcb_t;
+        let tcb = thread as *mut tcb_t;
         let cte_size = mem::size_of::<cte_t>() * tcbCNodeEntries;
         let cte_layout = Layout::from_size_align(cte_size, 4).ok().unwrap();
         let cte_ptr = alloc::alloc::alloc(cte_layout);
@@ -509,26 +534,25 @@ pub fn create_initial_thread(
             root_cnode_cap,
             (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadCNode * mem::size_of::<cte_t>())
                 as *const cte_t,
-            (*(rootserver.tcb as *const tcb_t)).rootCap[tcbCTable],
+            (*(thread as *const tcb_t)).rootCap[tcbCTable],
         );
         cteInsert(
             it_pd_cap,
             (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadVspace * mem::size_of::<cte_t>())
                 as *const cte_t,
-            (*(rootserver.tcb as *const tcb_t)).rootCap[tcbVTable],
+            (*(thread as *const tcb_t)).rootCap[tcbVTable],
         );
         cteInsert(
             dc_ret.cap,
             (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
                 as *const cte_t,
-            (*(rootserver.tcb as *const tcb_t)).rootCap[tcbBuffer],
+            (*(thread as *const tcb_t)).rootCap[tcbBuffer],
         );
         (*tcb).tcbIPCBuffer = ipcbuf_vptr;
         (*tcb).tcbPriority = 255;
         (*tcb).tcbMCP = 255;
         (*tcb).domain = 0;
         setNextPC(tcb, ui_v_entry);
-        println!("{}",(*tcb).tcbArch.registers[0]);
         setThreadState(tcb, ThreadStateRunning);
         ksCurDomain = 0;
         let cap = cap_thread_cap_new(tcb as usize);
@@ -537,38 +561,160 @@ pub fn create_initial_thread(
                 as *const cte_t,
             cap,
         );
-        (*tcb).tcbName = String::from("rootserver");
+        (*tcb).tcbName = name;
         tcb
     }
 }
 
 pub fn try_inital_kernel() {
-    // map_kernel_window();
-    // activate_kernel_vspace();
+    map_kernel_window();
+    activate_kernel_vspace();
     traps::init();
     set_sie_mask(BIT!(SIE_SEIE) | BIT!(SIE_STIE));
     traps::enable_timer_interrupt();
-    let root_server_v_region = v_region_t {
-        start: 0x82000000,
-        end: 0x83000000,
-    };
-    create_rootserver_objects(0, root_server_v_region, 0);
-    let root_cnode_cap = create_root_cnode();
-    create_domain_cap(root_cnode_cap);
-    let it_pd_cap = create_it_address_space(root_cnode_cap, root_server_v_region);
-    let ipcbuf_vptr = 0x88000000;
-    let ui_v_entry = 0x81400000;
-    let ipcbuf_cap = create_ipcbuf_frame_cap(root_cnode_cap, it_pd_cap, ipcbuf_vptr);
-    create_idle_thread();
-    let initial = create_initial_thread(
-        root_cnode_cap,
+    load_apps();
+    // create_rootserver_objects(0, root_server_v_region, 0);
+    // let root_cnode_cap = create_root_cnode();
+    // create_domain_cap(root_cnode_cap);
+    // let it_pd_cap = create_it_address_space(root_cnode_cap, root_server_v_region);
+    // let ipcbuf_vptr = 0x83000000;
+    // let ui_v_entry = 0x81400000;
+    // let ipcbuf_cap = create_ipcbuf_frame_cap(root_cnode_cap, it_pd_cap, ipcbuf_vptr);
+    // create_idle_thread();
+    // let initial = create_initial_thread(
+    //     root_cnode_cap,
+    //     it_pd_cap,
+    //     ui_v_entry,
+    //     ipcbuf_vptr,
+    //     ipcbuf_cap,
+    // );
+    // unsafe {
+    //     ksCurThread = initial as usize;
+    // }
+    // setRegister(initial as *mut tcb_t, 1, USER_STACK[0].get_sp());
+}
+
+pub fn create_thread(
+    app_id: usize,
+    it_v_reg: v_region_t,
+    ui_v_entry: usize,
+    ipcbuf_vptr: usize,
+    offset:usize
+) -> *const tcb_t {
+    let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS);
+    let layout = Layout::from_size_align(size, 4).ok().unwrap();
+    let ptr: *mut u8;
+    unsafe {
+        ptr = alloc::alloc::alloc(layout);
+    }
+
+    let cap = cap_cnode_cap_new(
+        CONFIG_ROOT_CNODE_SIZE_BITS,
+        BIT!(6) - CONFIG_ROOT_CNODE_SIZE_BITS,
+        0,
+        ptr as usize,
+    );
+    write_slot(
+        (ptr as usize + (mem::size_of::<cte_t>() * seL4_CapInitThreadCNode)) as *const cte_t,
+        cap,
+    );
+    let n = arch_get_n_paging(it_v_reg);
+    let vspace_size = BIT!(seL4_VSpaceBits) * n;
+    let vspace_layout = Layout::from_size_align(vspace_size, 4).ok().unwrap();
+    let vspace_ptr: *mut u8;
+    unsafe {
+        vspace_ptr = alloc::alloc::alloc(vspace_layout);
+    }
+    // println!(
+    //     "vspace start:{:#x} vspace end:{:#x}",
+    //     vspace_ptr as usize,
+    //     vspace_ptr as usize + vspace_size
+    // );
+
+    let mut paddr=get_app_phys_addr(app_id);
+    paddr.start+=offset;
+    // println!("addr:{:#x}",paddr.start);
+    let it_pd_cap = create_address_space_alloced(
+        cap_get_capPtr(cap),
+        cap,
+        it_v_reg,
+        paddr,
+        vspace_ptr as usize,
+    );
+    let ipc_buf = get_app_phys_addr(app_id).end - PAGE_SIZE;
+    let ipcbuf_cap = create_ipcbuf_frame_cap(cap, it_pd_cap, ipcbuf_vptr, ipc_buf);
+    let thread_size = mem::size_of::<tcb_t>();
+    let thread_layout = Layout::from_size_align(thread_size, 4).ok().unwrap();
+    let thread_ptr: usize;
+    unsafe {
+        thread_ptr = alloc::alloc::alloc(thread_layout) as usize;
+    }
+    let thread = create_initial_thread(
+        thread_ptr,
+        cap,
         it_pd_cap,
         ui_v_entry,
         ipcbuf_vptr,
         ipcbuf_cap,
+        String::from("first thread"),
     );
     unsafe {
-        ksCurThread = initial as usize;
+        ksCurThread = thread as usize;
     }
-    setRegister(initial as *mut tcb_t, 1, USER_STACK[0].get_sp());
+    setRegister(thread as *mut tcb_t, sp, it_v_reg.end - PAGE_SIZE - 8);
+    thread
 }
+
+pub fn load_apps() {
+    let num_app = get_num_app();
+    for i in 0..num_app {
+        from_elf(get_app_data(i), i);
+    }
+}
+
+pub fn from_elf(elf_data: &[u8], app_id: usize) {
+    let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
+    let elf_header = elf.header;
+    let magic = elf_header.pt1.magic;
+    assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!");
+    let ph_count = elf_header.pt2.ph_count();
+    let mut start_va: usize = usize::MAX;
+    let mut end_va: usize = 0;
+    let mut offset=0;
+    for i in 0..ph_count {
+        let ph = elf.program_header(i).unwrap();
+        let data = if let SegmentData::Undefined(data) = ph.get_data(&elf).unwrap() {
+            data
+        } else {
+            panic!("can not parser elf!");
+        };
+        if i==0{
+            // println!("data:{:#x} phsy:{:#x}",data.as_ptr() as usize,get_app_phys_addr(app_id).start);
+            offset=data.as_ptr() as usize - get_app_phys_addr(app_id).start ;
+        }
+        if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
+            start_va = if start_va < ph.virtual_addr() as usize {
+                start_va
+            } else {
+                ph.virtual_addr() as usize
+            };
+            end_va = if end_va < (ph.virtual_addr() + ph.mem_size()) as usize {
+                ph.virtual_addr() as usize
+            } else {
+                end_va
+            };
+        }
+    }
+    let it_v_reg = v_region_t {
+        start: start_va,
+        end: end_va + PAGE_SIZE + USER_STACK_SIZE + PAGE_SIZE,
+    };
+    let thread = create_thread(
+        app_id,
+        it_v_reg,
+        elf.header.pt2.entry_point() as usize ,
+        it_v_reg.end - PAGE_SIZE,
+        offset
+    );
+}
+

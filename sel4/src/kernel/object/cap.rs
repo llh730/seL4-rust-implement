@@ -39,11 +39,6 @@ pub fn cteInsert(newCap: *const cap_t, _srcSlot: *const cte_t, _destSlot: *const
         let mut newMDB = mdb_node_set_mdbPrev(srcMDB, _srcSlot as usize);
         newMDB = mdb_node_set_mdbRevocable(newMDB, newCapIsRevocable as usize);
         newMDB = mdb_node_set_mdbFirstBadged(newMDB, newCapIsRevocable as usize);
-        // assert!(cap_get_capType((*_destSlot).cap) == cap_null_cap);
-        // assert!(
-        //     mdb_node_get_mdbNext((*_destSlot).cteMDBNode) == 0
-        //         && mdb_node_get_mdbPrev((*_destSlot).cteMDBNode) == 0
-        // );
         setUntypedCapAsFull(srcCap, newCap, _srcSlot);
         (*(_destSlot as *mut cte_t)).cap = newCap as *mut cap_t;
         (*(_destSlot as *mut cte_t)).cteMDBNode = newMDB as *mut mdb_node_t;

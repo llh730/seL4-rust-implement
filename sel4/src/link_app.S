@@ -10,6 +10,8 @@ _num_app:
     .section .data
     .global app_0_start
     .global app_0_end
+    .align 12
 app_0_start:
-    .incbin "../user/build/bin/ch2b_hello_world.bin"
+    .incbin "../user/build/elf/ch2b_power_7.elf"
+    .space 4096*4
 app_0_end:

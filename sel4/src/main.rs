@@ -31,9 +31,12 @@ use crate::elfloader::{create_thread_for_tasks, run_first_task, USER_STACK};
 use crate::kernel::boot::{create_root_cnode, try_inital_kernel};
 use crate::kernel::object::structures::cap_t;
 use crate::kernel::object::structures::pte_ptr_get_ppn;
-use crate::kernel::thread::{activateThread, idle_thread, ksCurThread, schedule, tcb_t, setRegister};
+use crate::kernel::thread::{
+    activateThread, idle_thread, ksCurThread, schedule, setRegister, tcb_t,
+};
 use crate::kernel::vspace::{
-    activate_kernel_vspace, map_kernel_window, read_satp, write_satp, RISCV_GET_PT_INDEX,
+    activate_kernel_vspace, lookupPTSlot, map_kernel_window, read_satp, setVMRoot, write_satp,
+    RISCV_GET_PT_INDEX,
 };
 use crate::traps::restore_user_context;
 use crate::{heap_alloc::init_heap, sbi::shutdown};
@@ -55,24 +58,18 @@ mod utils;
 
 core::arch::global_asm!(include_str!("link_app.S"));
 core::arch::global_asm!(include_str!("crt0.S"));
+// core::arch::global_asm!(include_str!("link_apps.S"));
 
 #[no_mangle]
 pub fn rust_main() {
     println!("[kernel] Hello, world!");
     init_heap();
     try_inital_kernel();
-    elfloader::load_apps();
-    create_thread_for_tasks();
     timer::set_next_trigger();
     schedule();
     activateThread();
     unsafe {
-        for i in 0..35 {
-            println!(
-                "{}: {}",i,
-                (*(ksCurThread as *const tcb_t)).tcbArch.registers[i]
-            );
-        }
+        setVMRoot(ksCurThread as *mut tcb_t);
     }
     restore_user_context();
     shutdown();

@@ -1348,16 +1348,16 @@ pub fn cap_frame_cap_get_capFIsDevice(_cap: *const cap_t) -> usize {
 pub fn cap_frame_cap_get_capFMappedAddress(_cap: *const cap_t) -> usize {
     unsafe {
         let cap = *_cap;
-        let ret = (cap.words[0] & 0x7fffffffffusize) >> 54;
+        let ret = (cap.words[0] & 0x7fffffffffusize) <<0;
         ret
     }
 }
+#[inline]
 pub fn cap_frame_cap_set_capFMappedAddress(_cap: *const cap_t, v64: usize) -> *const cap_t {
     unsafe {
         let mut cap = cap_t {
             words: (*_cap).words,
         };
-        let ret = (cap.words[0] & 0x7fffffffffusize) >> 54;
         cap.words[0] &= !0x7fffffffffusize;
         cap.words[0] |= (v64 >> 0) & 0x7fffffffffusize;
         return (&cap) as *const cap_t;

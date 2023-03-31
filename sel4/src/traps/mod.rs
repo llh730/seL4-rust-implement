@@ -13,8 +13,12 @@ use crate::{
         RISCVStorePageFault, RISCVSupervisorTimer,
     },
     elfloader::{mark_current_exited, mark_current_suspended, run_next_task, THREAD},
-    kernel::thread::{arch_tcb_t, ksCurThread, tcb_t, NextIP},
+    kernel::{
+        thread::{arch_tcb_t, ksCurThread, n_contextRegisters, setRegister, tcb_t, NextIP},
+        vspace::{activate_kernel_vspace, setVSpaceRoot},
+    },
     println,
+    sbi::shutdown,
     syscall::syscall,
     timer::set_next_trigger,
 };
@@ -36,10 +40,14 @@ pub fn enable_timer_interrupt() {
 
 pub fn restore_user_context() {
     unsafe {
-        let cur_thread_reg = (*(ksCurThread as *const tcb_t))
-            .tcbArch
-            .registers
-            .as_ptr() as usize;
+        let cur_thread_reg = (*(ksCurThread as *const tcb_t)).tcbArch.registers.as_ptr() as usize;
+        // for i in 0..n_contextRegisters {
+        //     println!(
+        //         "registers[{}]:{:#x}",
+        //         i,
+        //         (*(ksCurThread as *const tcb_t)).tcbArch.registers[i]
+        //     );
+        // }
         asm!("mv t0, {0}      \n",
         "ld  ra, (0*8)(t0)  \n",
         "ld  sp, (1*8)(t0)  \n",
@@ -90,13 +98,14 @@ pub fn trap_handler() {
         let stval = stval::read();
         match scause {
             RISCVEnvCall => {
-                let mut cx = (&((*(ksCurThread as *const tcb_t)).tcbArch))
-                    as *const arch_tcb_t as *mut arch_tcb_t;
-                (*cx).registers[NextIP] += 4;
+                let mut cx = (&((*(ksCurThread as *const tcb_t)).tcbArch)) as *const arch_tcb_t
+                    as *mut arch_tcb_t;
+                (*cx).registers[NextIP] += sepc+4;
                 (*cx).registers[9] = syscall(
                     (*cx).registers[16],
                     [(*cx).registers[9], (*cx).registers[10], (*cx).registers[11]],
                 ) as usize;
+                setRegister(ksCurThread as *const tcb_t as *mut tcb_t, NextIP, sepc + 4);
                 restore_user_context();
             }
             RISCVStoreAccessFault
@@ -105,21 +114,25 @@ pub fn trap_handler() {
             | RISCVInstructionPageFault
             | RISCVLoadAccessFault
             | RISCVLoadPageFault => {
-                println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.", stval, sepc,scause);
-                mark_current_exited();
-                run_next_task();
-                restore_user_context();
+                println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.",sepc, stval, scause);
+                shutdown();
+                // mark_current_exited();
+                // run_next_task();
+                // restore_user_context();
             }
             RISCVInstructionIllegal => {
-                println!("[kernel] IllegalInstruction in application, core dumped.");
-                mark_current_exited();
-                run_next_task();
-                restore_user_context();
+                println!("[kernel] IllegalInstruction in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.", sepc,stval, scause);
+                shutdown();
+                // mark_current_exited();
+                // run_next_task();
+                // restore_user_context();
             }
             RISCVSupervisorTimer => {
+                println!("supervisor timer");
+                // shutdown();
                 set_next_trigger();
-                mark_current_suspended();
-                run_next_task();
+                // mark_current_suspended();
+                // run_next_task();
                 restore_user_context();
             }
             _ => {
@@ -128,5 +141,3 @@ pub fn trap_handler() {
         }
     }
 }
-
-
