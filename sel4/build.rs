@@ -58,17 +58,5 @@ app_{0}_end:"#,
         )?;
     }
 
-    for (idx, app) in apps.iter().enumerate() {
-        writeln!(
-            fi,
-            r#"
-    .align 12
-start_{0}:
-    .space 4096*22
-end_{0}:
-            "#,
-            idx
-        )?;
-    }
     Ok(())
 }
