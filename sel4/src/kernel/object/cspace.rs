@@ -36,9 +36,9 @@ pub struct cap_transfer_t {
 
 #[derive(PartialEq)]
 pub struct lookupCapAndSlot_ret_t {
-    status: exception_t,
-    cap: *const cap_t,
-    slot: *const cte_t,
+    pub status: exception_t,
+    pub cap: *const cap_t,
+    pub slot: *const cte_t,
 }
 
 impl Default for lookupCapAndSlot_ret_t {
@@ -106,6 +106,21 @@ pub fn lookupSlot(thread: *const tcb_t, capptr: usize) -> lookupSlot_raw_ret_t {
             slot: res_ret.slot,
         };
         return ret;
+    }
+}
+
+pub fn lookupCapAndSlot(thread: *const tcb_t, cPtr: usize) -> lookupCapAndSlot_ret_t {
+    let lu_ret = lookupSlot(thread, cPtr);
+    if lu_ret.status != exception_t::EXCEPTION_NONE {
+        panic!("can not find right slot");
+    }
+    unsafe {
+        let ret = lookupCapAndSlot_ret_t {
+            status: exception_t::EXCEPTION_NONE,
+            slot: lu_ret.slot,
+            cap: (*lu_ret.slot).cap,
+        };
+        ret
     }
 }
 

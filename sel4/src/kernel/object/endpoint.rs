@@ -4,17 +4,17 @@ use crate::kernel::{
         thread_state_get_blockingIPCCanGrantReply, thread_state_get_blockingIPCIsCall,
     },
     thread::{
-        doNBRecvFailedTransfer, possibleSwitchTo, rescheduleRequired, scheduleTCB, setThreadState,
-        tcbEPAppend, tcbEPDequeue, tcbSchedEnqueue, tcb_queue_t, tcb_t,
-        ThreadStateBlockedOnReceive, ThreadStateBlockedOnSend, ThreadStateInactive,
-        ThreadStateRestart, ThreadStateRunning, doIPCTransfer, setupCallerCap,
+        doIPCTransfer, doNBRecvFailedTransfer, ksCurThread, possibleSwitchTo, rescheduleRequired,
+        scheduleTCB, setThreadState, setupCallerCap, tcbEPAppend, tcbEPDequeue, tcbSchedEnqueue,
+        tcb_queue_t, tcb_t, ThreadStateBlockedOnReceive, ThreadStateBlockedOnSend,
+        ThreadStateInactive, ThreadStateRestart, ThreadStateRunning,
     },
 };
 
 use super::structures::{
     cap_endpoint_cap_get_capCanGrant, cap_endpoint_cap_get_capEPPtr, endpoint_ptr_get_epQueue_head,
     endpoint_ptr_get_epQueue_tail, endpoint_ptr_get_state, endpoint_ptr_set_epQueue_head,
-    endpoint_ptr_set_epQueue_tail, endpoint_ptr_set_state, endpoint_t,
+    endpoint_ptr_set_epQueue_tail, endpoint_ptr_set_state, endpoint_t, exception_t,
     thread_state_get_blockingObject, thread_state_get_tsType, thread_state_set_blockingIPCBadge,
     thread_state_set_blockingIPCCanGrant, thread_state_set_blockingIPCCanGrantReply,
     thread_state_set_blockingIPCIsCall, thread_state_set_blockingObject, thread_state_set_tsType,
@@ -99,7 +99,11 @@ pub fn sendIPC(
 
                 doIPCTransfer(thread, epptr, badge, canGrant, dest);
 
-                let replyCanGrant = if thread_state_get_blockingIPCCanGrant((*dest).tcbState) !=0 {true} else {false};
+                let replyCanGrant = if thread_state_get_blockingIPCCanGrant((*dest).tcbState) != 0 {
+                    true
+                } else {
+                    false
+                };
                 setThreadState(dest, ThreadStateRunning);
                 possibleSwitchTo(dest);
                 if do_call {
@@ -271,7 +275,7 @@ pub fn cancelBadgedSends(epptr: *mut endpoint_t, badge: usize) {
                 }
                 ep_ptr_set_queue(epptr, queue);
 
-                if queue.head!=0{
+                if queue.head != 0 {
                     endpoint_ptr_set_state(epptr, EPState_Send);
                 }
                 rescheduleRequired();
@@ -284,4 +288,26 @@ pub fn cancelBadgedSends(epptr: *mut endpoint_t, badge: usize) {
             }
         }
     }
+}
+
+pub fn performInvocation_Endpoint(
+    ep: *const endpoint_t,
+    badge: usize,
+    canGrant: bool,
+    canGrantReply: bool,
+    block: bool,
+    call: bool,
+) -> exception_t {
+    unsafe {
+        sendIPC(
+            block,
+            call,
+            badge,
+            canGrant,
+            canGrantReply,
+            ksCurThread as *mut tcb_t,
+            ep as *mut endpoint_t,
+        );
+    }
+    exception_t::EXCEPTION_NONE
 }

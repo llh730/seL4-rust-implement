@@ -3,7 +3,7 @@
     .section .data
     .global _num_app
 _num_app:
-    .quad 9
+    .quad 10
     .quad app_0_start
     .quad app_1_start
     .quad app_2_start
@@ -13,7 +13,8 @@ _num_app:
     .quad app_6_start
     .quad app_7_start
     .quad app_8_start
-    .quad app_8_end
+    .quad app_9_start
+    .quad app_9_end
 
     .section .data
     .global app_0_start
@@ -56,7 +57,7 @@ app_3_end:
     .global app_4_end
     .align 12
 app_4_start:
-    .incbin "../user/build/elf/ch3b_sleep.elf"
+    .incbin "../user/build/elf/ch2b_sys_send.elf"
     .space 4096*4
 app_4_end:
 
@@ -65,7 +66,7 @@ app_4_end:
     .global app_5_end
     .align 12
 app_5_start:
-    .incbin "../user/build/elf/ch3b_sleep1.elf"
+    .incbin "../user/build/elf/ch3b_sleep.elf"
     .space 4096*4
 app_5_end:
 
@@ -74,7 +75,7 @@ app_5_end:
     .global app_6_end
     .align 12
 app_6_start:
-    .incbin "../user/build/elf/ch3b_yield0.elf"
+    .incbin "../user/build/elf/ch3b_sleep1.elf"
     .space 4096*4
 app_6_end:
 
@@ -83,7 +84,7 @@ app_6_end:
     .global app_7_end
     .align 12
 app_7_start:
-    .incbin "../user/build/elf/ch3b_yield1.elf"
+    .incbin "../user/build/elf/ch3b_yield0.elf"
     .space 4096*4
 app_7_end:
 
@@ -92,6 +93,15 @@ app_7_end:
     .global app_8_end
     .align 12
 app_8_start:
-    .incbin "../user/build/elf/ch3b_yield2.elf"
+    .incbin "../user/build/elf/ch3b_yield1.elf"
     .space 4096*4
 app_8_end:
+
+    .section .data
+    .global app_9_start
+    .global app_9_end
+    .align 12
+app_9_start:
+    .incbin "../user/build/elf/ch3b_yield2.elf"
+    .space 4096*4
+app_9_end:
