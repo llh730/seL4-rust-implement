@@ -1,8 +1,4 @@
-use core::alloc::Layout;
-use core::arch::asm;
-use core::cell::RefCell;
 use core::mem;
-use lazy_static::*;
 use riscv::register::satp;
 
 use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
@@ -252,7 +248,7 @@ pub fn map_it_pt_cap(_vspace_cap: *const cap_t, _pt_cap: *const cap_t) {
     let vptr = cap_page_table_cap_get_capPTMappedAddress(_pt_cap);
     let lvl1pt = cap_get_capPtr(_vspace_cap);
     let pt: usize = cap_get_capPtr(_pt_cap);
-
+    // println!("map pt:{:#x}",pt);
     let pt_ret = lookupPTSlot(lvl1pt, vptr);
     let targetSlot = pt_ret.ptSlot as *mut usize;
     unsafe {
@@ -321,11 +317,13 @@ pub fn getPPtrFromHWPTE(pte: usize) -> usize {
 pub fn lookupPTSlot(lvl1pt: usize, vptr: vptr_t) -> lookupPTSlot_ret_t {
     let mut level = CONFIG_PT_LEVELS - 1;
     let mut pt = lvl1pt;
+    // println!("lvl1pt:{:#x}",lvl1pt);
     // println!("vptr:{:#x}", vptr);
     let mut ret = lookupPTSlot_ret_t {
         ptBitsLeft: PT_INDEX_BITS * level + seL4_PageBits,
         ptSlot: pt + ((vptr >> (PT_INDEX_BITS * level + seL4_PageBits)) & MASK!(PT_INDEX_BITS)) * 8,
     };
+    // println!("")
     // unsafe {
     //     println!(
     //         "ptSlot:{:#x} , isPTEPageTable:{},*ptSlot:{:#x}",
@@ -347,6 +345,7 @@ pub fn lookupPTSlot(lvl1pt: usize, vptr: vptr_t) -> lookupPTSlot_ret_t {
         level -= 1;
         ret.ptBitsLeft -= PT_INDEX_BITS;
         pt = pte_ptr_get_ppn(ret.ptSlot as *const usize) << seL4_PageTableBits;
+        // println!("pt: {:#x}",pt);
         ret.ptSlot = pt + ((vptr >> ret.ptBitsLeft) & MASK!(PT_INDEX_BITS)) * 8;
     }
     ret
@@ -513,10 +512,8 @@ pub fn setVMRoot(thread: *mut tcb_t) {
 
 pub fn arch_get_n_paging(it_v_reg: v_region_t) -> usize {
     let mut n: usize = 0;
-    let mut i = 0;
-    while i < CONFIG_PT_LEVELS - 1 {
+    for i in 0..CONFIG_PT_LEVELS - 1 {
         n += get_n_paging(it_v_reg, RISCV_GET_LVL_PGSIZE_BITS(i));
-        i += 1;
     }
     return n;
 }
@@ -582,6 +579,7 @@ pub fn create_address_space_alloced(
             write_slot(
                 (cap_get_capPtr(root_cnode_cap) + mem::size_of::<cte_t>() * cnt) as *const cte_t,
                 create_it_pt_cap(lvl1pt_cap, allocated, pt_vptr, 0),
+                // 0 as *const cap_t
             );
             pt_vptr += RISCV_GET_LVL_PGSIZE(i);
             cnt += 1;

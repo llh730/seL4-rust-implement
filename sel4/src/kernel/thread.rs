@@ -472,11 +472,14 @@ pub fn activateThread() {
         assert!(ksCurThread != 0 && ksCurThread != 1);
         let thread = ksCurThread as *mut tcb_t;
         match thread_state_get_tsType((*thread).tcbState as *const thread_state_t) {
-            ThreadStateRunning => return,
+            ThreadStateRunning => {
+                Arch_switchToThread(thread);
+            },
             ThreadStateRestart => {
                 let pc = getReStartPC(thread as *const tcb_t);
                 setNextPC(thread, pc);
                 setThreadState(thread as *const tcb_t, ThreadStateRunning);
+                Arch_switchToThread(thread);
             }
             ThreadStateIdleThreadState => return,
             _ => panic!("current thread is blocked"),

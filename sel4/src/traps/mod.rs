@@ -41,13 +41,6 @@ pub fn enable_timer_interrupt() {
 pub fn restore_user_context() {
     unsafe {
         let cur_thread_reg = (*(ksCurThread as *const tcb_t)).tcbArch.registers.as_ptr() as usize;
-        // for i in 0..n_contextRegisters {
-        //     println!(
-        //         "registers[{}]:{:#x}",
-        //         i,
-        //         (*(ksCurThread as *const tcb_t)).tcbArch.registers[i]
-        //     );
-        // }
         asm!("mv t0, {0}      \n",
         "ld  ra, (0*8)(t0)  \n",
         "ld  sp, (1*8)(t0)  \n",
