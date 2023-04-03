@@ -123,16 +123,10 @@ pub fn trap_handler() {
             RISCVInstructionIllegal => {
                 println!("[kernel] IllegalInstruction in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.", sepc,stval, scause);
                 shutdown();
-                // mark_current_exited();
-                // run_next_task();
-                // restore_user_context();
             }
             RISCVSupervisorTimer => {
                 println!("supervisor timer");
-                // shutdown();
                 set_next_trigger();
-                // mark_current_suspended();
-                // run_next_task();
                 restore_user_context();
             }
             _ => {

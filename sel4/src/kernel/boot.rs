@@ -39,7 +39,7 @@ use super::{
     },
     thread::{
         arch_tcb_t, ksCurDomain, ksCurThread, ksIdleThread, setNextPC, setRegister, setThreadState,
-        sp, tcb_t, Arch_initContext, ThreadStateIdleThreadState, ThreadStateRunning,
+        sp, tcb_t, Arch_initContext, ThreadStateIdleThreadState, ThreadStateRunning, ksSchedulerAction, setPriority, tcbSchedEnqueue,
     },
     vspace::{
         activate_kernel_vspace, arch_get_n_paging, create_it_address_space, map_it_frame_cap,
@@ -599,7 +599,8 @@ pub fn create_thread(
     it_v_reg: v_region_t,
     ui_v_entry: usize,
     ipcbuf_vptr: usize,
-    offset:usize
+    offset:usize,
+    prio:usize,
 ) -> *const tcb_t {
     let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS);
     let layout = Layout::from_size_align(size, 4).ok().unwrap();
@@ -661,9 +662,19 @@ pub fn create_thread(
     unsafe {
         ksCurThread = thread as usize;
     }
+    setPriority(thread, prio);
     setRegister(thread as *mut tcb_t, sp, it_v_reg.end - PAGE_SIZE - 8);
     thread
 }
+
+pub fn init_core_state(thread:*const tcb_t){
+    tcbSchedEnqueue(thread as *mut tcb_t);
+    unsafe{
+        ksSchedulerAction=0;
+        ksCurThread=thread as usize;
+    }
+}
+
 
 pub fn load_apps() {
     let num_app = get_num_app();
@@ -671,6 +682,7 @@ pub fn load_apps() {
         from_elf(get_app_data(i), i);
     }
 }
+
 
 pub fn from_elf(elf_data: &[u8], app_id: usize) {
     let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
@@ -714,7 +726,9 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
         it_v_reg,
         elf.header.pt2.entry_point() as usize ,
         it_v_reg.end - PAGE_SIZE,
-        offset
+        offset,1
+
     );
+    init_core_state(thread);
 }
 

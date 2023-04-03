@@ -68,9 +68,9 @@ pub fn rust_main() {
     timer::set_next_trigger();
     schedule();
     activateThread();
-    unsafe {
-        setVMRoot(ksCurThread as *mut tcb_t);
-    }
+    // unsafe {
+    //     setVMRoot(ksCurThread as *mut tcb_t);
+    // }
     restore_user_context();
     shutdown();
 }

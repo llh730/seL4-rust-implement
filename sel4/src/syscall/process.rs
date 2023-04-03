@@ -1,4 +1,7 @@
-use crate::elfloader::{run_next_task, mark_current_suspended, mark_current_exited};
+use crate::elfloader::{mark_current_exited, mark_current_suspended, run_next_task};
+use crate::kernel::thread::{
+    activateThread, ksCurThread, rescheduleRequired, schedule, tcbSchedDequeue, tcb_t, tcbSchedAppend,
+};
 use crate::sbi::shutdown;
 use crate::tasks::{exit_current_and_run_next, suspend_current_and_run_next};
 // use crate::tasks::{exit_current_and_run_next, suspend_current_and_run_next};
@@ -11,7 +14,6 @@ pub struct TimeVal {
     pub sec: usize,
     pub usec: usize,
 }
-
 
 // pub struct TaskInfo {
 //     status: TaskStatus,
@@ -31,24 +33,27 @@ pub struct TimeVal {
 //     time: usize
 // }
 
-
-
-
-
 pub fn sys_exit(exit_code: i32) -> ! {
     info!("[kernel] Application exited with code {}", exit_code);
-    // exit_current_and_run_next();
-    // mark_current_exited();
-    // run_next_task();
+    // unsafe {
+    //     tcbSchedDequeue(ksCurThread as *const tcb_t);
+    // }
+    // rescheduleRequired();
+    // schedule();
+    // activateThread();
     shutdown();
     panic!("Unreachable in sys_exit!");
 }
 
 pub fn sys_yield() -> isize {
     info!("[kernel] Application yield");
-    // suspend_current_and_run_next();
-    // mark_current_suspended();
-    // run_next_task();
+    // unsafe {
+    //     tcbSchedDequeue(ksCurThread as *const tcb_t);
+    //     tcbSchedAppend(ksCurThread as *mut tcb_t);
+    // }
+    // rescheduleRequired();
+    // schedule();
+    // activateThread();
     0
 }
 
@@ -62,4 +67,3 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     }
     0
 }
-

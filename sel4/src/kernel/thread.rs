@@ -172,7 +172,7 @@ pub static mut ksCurThread: usize = 0;
 
 pub static mut ksIdleThread: usize = 0;
 
-static mut ksSchedulerAction: usize = 0;
+pub static mut ksSchedulerAction: usize = 0;
 
 static mut ksReadyQueues: [tcb_queue_t; NUM_READY_QUEUES] =
     [tcb_queue_t { head: 0, tail: 0 }; NUM_READY_QUEUES];
@@ -272,7 +272,7 @@ pub fn removeFromBitmap(dom: usize, prio: usize) {
 pub fn tcbSchedEnqueue(_tcb: *mut tcb_t) {
     unsafe {
         let tcb = &(*_tcb);
-        if thread_state_get_tcbQueued(tcb.tcbState) != 0 {
+        if thread_state_get_tcbQueued(tcb.tcbState) == 0 {
             let dom = tcb.domain;
             let prio = tcb.tcbPriority;
             let idx = ready_queues_index(dom, prio);
@@ -325,11 +325,13 @@ pub fn tcbSchedDequeue(_tcb: *const tcb_t) {
 
 pub fn tcbSchedAppend(tcb: *mut tcb_t) {
     unsafe {
-        if thread_state_get_tcbQueued((*tcb).tcbState) != 0 {
+        if thread_state_get_tcbQueued((*tcb).tcbState) == 0 {
             let dom = (*tcb).domain;
             let prio = (*tcb).tcbPriority;
+            println!("{} {}",dom,prio);
             let idx = ready_queues_index(dom, prio);
             let mut queue = ksReadyQueues[idx];
+            println!("tail:{:#x} head:{:#x}", queue.tail, queue.head);
             if queue.head == 0 {
                 queue.head = tcb as usize;
                 addToBitmap(dom, prio);
@@ -337,6 +339,7 @@ pub fn tcbSchedAppend(tcb: *mut tcb_t) {
                 let next = queue.tail as *mut tcb_t;
                 (*next).tcbSchedNext = tcb as usize;
             }
+            println!("tail:{:#x} head:{:#x}", queue.tail, queue.head);
             (*tcb).tcbSchedPrev = queue.tail;
             (*tcb).tcbSchedNext = 0;
             ksReadyQueues[idx] = queue;
@@ -601,24 +604,22 @@ pub fn schedule() {
                 let fastfail = ksCurThread == ksIdleThread
                     || (*candidate).tcbPriority < (*(ksCurThread as *const tcb_t)).tcbPriority;
                 if fastfail && !isHighestPrio(ksCurDomain, (*candidate).tcbPriority) {
-                    println!("in fast fail :{}",fastfail);
                     tcbSchedEnqueue(candidate as *mut tcb_t);
                     ksSchedulerAction = SchedulerAction_ChooseNewThread;
                     scheduleChooseNewThread();
                 } else if was_runnable
                     && (*candidate).tcbPriority == (*(ksCurThread as *const tcb_t)).tcbPriority
                 {
-                    println!("in runnable:{}",was_runnable);
                     tcbSchedAppend(candidate as *mut tcb_t);
                     ksSchedulerAction = SchedulerAction_ChooseNewThread;
                     scheduleChooseNewThread();
                 } else {
-                    println!("in out");
                     switchToThread(candidate);
                 }
             }
         }
         ksSchedulerAction = SchedulerAction_ResumeCurrentThread;
+        println!("out schedule");
     }
 }
 

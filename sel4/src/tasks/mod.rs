@@ -4,7 +4,6 @@ pub mod switch;
 #[allow(clippy::module_inception)]
 pub mod task;
 
-use crate::println;
 use crate::sync::UPSafeCell;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::timer::get_time_us;

@@ -17,7 +17,6 @@ use crate::{
             ThreadStateRunning,
         },
     },
-    println,
     traps::restore_user_context,
 };
 #[repr(align(4096))]
@@ -170,18 +169,6 @@ pub fn create_thread_for_tasks() {
     }
 }
 
-pub fn list_task() {
-    unsafe {
-        let num_app = get_num_app();
-        for j in 0..num_app {
-            println!("THREAD:{}", j);
-            let tcb = THREAD[j] as *const tcb_t;
-            for i in 0..35 {
-                println!("register[{}] : {}", i, (*tcb).tcbArch.registers[i]);
-            }
-        }
-    }
-}
 
 pub fn run_first_task() {
     unsafe {

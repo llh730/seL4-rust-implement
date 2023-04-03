@@ -7,7 +7,6 @@ use crate::{
         object::{cspace::*, objecttype::*, structures::*},
         thread::tcb_t,
     },
-    println,
 };
 
 use super::endpoint::cancelBadgedSends;
