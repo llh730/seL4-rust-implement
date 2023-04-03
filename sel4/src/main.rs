@@ -58,7 +58,6 @@ mod utils;
 
 core::arch::global_asm!(include_str!("link_app.S"));
 core::arch::global_asm!(include_str!("crt0.S"));
-// core::arch::global_asm!(include_str!("link_apps.S"));
 
 #[no_mangle]
 pub fn rust_main() {

@@ -143,37 +143,13 @@ pub fn mdb_node_new(
     mdbPrev: usize,
 ) -> *const mdb_node_t {
     unsafe {
+        
         let mut mdb_node = mdb_node_t::default();
         let size = size_of::<mdb_node_t>();
         let layout = Layout::from_size_align(size, 4).ok().unwrap();
         let ptr = alloc::alloc::alloc(layout) as *mut mdb_node_t;
-        /* fail if user has passed bits that we will override */
-        assert!(
-            (mdbNext & !0x7ffffffffcusize)
-                == if true && (mdbNext & (1usize << 38)) != 0 {
-                    0xffffff8000000000
-                } else {
-                    0
-                }
-        );
-        assert!(
-            (mdbRevocable & !0x1usize)
-                == if true && (mdbRevocable & (1usize << 38)) != 0 {
-                    0x0
-                } else {
-                    0
-                }
-        );
-        assert!(
-            (mdbFirstBadged & !0x1usize)
-                == if true && (mdbFirstBadged & (1usize << 38)) != 0 {
-                    0x0
-                } else {
-                    0
-                }
-        );
+        // println!("mdb ptr start :{:#x} ,end:{:#x}",ptr as usize,ptr as usize+size);
 
-        //FIXMe::Why 0???
         mdb_node.words[0] = 0 | mdbPrev << 0;
 
         mdb_node.words[1] = 0

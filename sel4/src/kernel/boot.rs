@@ -38,8 +38,9 @@ use super::{
         },
     },
     thread::{
-        arch_tcb_t, ksCurDomain, ksCurThread, ksIdleThread, setNextPC, setRegister, setThreadState,
-        sp, tcb_t, Arch_initContext, ThreadStateIdleThreadState, ThreadStateRunning, ksSchedulerAction, setPriority, tcbSchedEnqueue,
+        arch_tcb_t, ksCurDomain, ksCurThread, ksIdleThread, ksSchedulerAction, setNextPC,
+        setPriority, setRegister, setThreadState, sp, tcbSchedEnqueue, tcb_t, Arch_initContext,
+        ThreadStateIdleThreadState, ThreadStateRunning,
     },
     vspace::{
         activate_kernel_vspace, arch_get_n_paging, create_it_address_space, map_it_frame_cap,
@@ -509,27 +510,35 @@ pub fn create_initial_thread(
     ipcbuf_cap: *const cap_t,
     name: String,
 ) -> *const tcb_t {
+    let tcb = thread as *mut tcb_t;
+    let cte_total_size = mem::size_of::<cte_t>() * tcbCNodeEntries;
+    let cte_size = mem::size_of::<cte_t>();
+    let cte_layout = Layout::from_size_align(cte_total_size, 4).ok().unwrap();
+    let cte_ptr: *mut u8;
     unsafe {
-        let tcb = thread as *mut tcb_t;
-        let cte_size = mem::size_of::<cte_t>() * tcbCNodeEntries;
-        let cte_layout = Layout::from_size_align(cte_size, 4).ok().unwrap();
-        let cte_ptr = alloc::alloc::alloc(cte_layout);
-        let mut rootCaps: [*const cte_t; tcbCNodeEntries] = [0 as *const cte_t; tcbCNodeEntries];
-        for i in 0..tcbCNodeEntries {
-            let ptr = (cte_ptr as usize + i * cte_size) as *mut cte_t;
+        cte_ptr = alloc::alloc::alloc(cte_layout);
+    }
+    let mut rootCaps: [*const cte_t; tcbCNodeEntries] = [0 as *const cte_t; tcbCNodeEntries];
+    for i in 0..tcbCNodeEntries {
+        let ptr = (cte_ptr as usize + i * cte_size) as *mut cte_t;
+        unsafe {
+
             (*ptr).cap = cap_null_cap_new() as *mut cap_t;
             (*ptr).cteMDBNode = mdb_node_new(0, 0, 0, 0) as *mut mdb_node_t;
-            rootCaps[i] = (cte_ptr as usize + i * cte_size) as *mut cte_t;
         }
-
+        rootCaps[i] = (cte_ptr as usize + i * cte_size) as *mut cte_t;
+    }
+    unsafe {
         (*tcb).rootCap = rootCaps;
         (*tcb).tcbState = thread_state_new();
         Arch_initContext((&(*tcb).tcbArch) as *const arch_tcb_t as *mut arch_tcb_t);
-        let dc_ret = deriveCap(
-            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
-                as *const cte_t,
-            ipcbuf_cap,
-        );
+    }
+    let dc_ret = deriveCap(
+        (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+            as *const cte_t,
+        ipcbuf_cap,
+    );
+    unsafe {
         cteInsert(
             root_cnode_cap,
             (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadCNode * mem::size_of::<cte_t>())
@@ -548,6 +557,8 @@ pub fn create_initial_thread(
                 as *const cte_t,
             (*(thread as *const tcb_t)).rootCap[tcbBuffer],
         );
+    }
+    unsafe {
         (*tcb).tcbIPCBuffer = ipcbuf_vptr;
         (*tcb).tcbPriority = 255;
         (*tcb).tcbMCP = 255;
@@ -599,8 +610,8 @@ pub fn create_thread(
     it_v_reg: v_region_t,
     ui_v_entry: usize,
     ipcbuf_vptr: usize,
-    offset:usize,
-    prio:usize,
+    offset: usize,
+    prio: usize,
 ) -> *const tcb_t {
     let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS);
     let layout = Layout::from_size_align(size, 4).ok().unwrap();
@@ -632,8 +643,8 @@ pub fn create_thread(
     //     vspace_ptr as usize + vspace_size
     // );
 
-    let mut paddr=get_app_phys_addr(app_id);
-    paddr.start+=offset;
+    let mut paddr = get_app_phys_addr(app_id);
+    paddr.start += offset;
     // println!("addr:{:#x}",paddr.start);
     let it_pd_cap = create_address_space_alloced(
         cap_get_capPtr(cap),
@@ -667,14 +678,14 @@ pub fn create_thread(
     thread
 }
 
-pub fn init_core_state(thread:*const tcb_t){
+
+pub fn init_core_state(thread: *const tcb_t) {
     tcbSchedEnqueue(thread as *mut tcb_t);
-    unsafe{
-        ksSchedulerAction=0;
-        ksCurThread=thread as usize;
+    unsafe {
+        ksSchedulerAction = 0;
+        ksCurThread = thread as usize;
     }
 }
-
 
 pub fn load_apps() {
     let num_app = get_num_app();
@@ -682,7 +693,6 @@ pub fn load_apps() {
         from_elf(get_app_data(i), i);
     }
 }
-
 
 pub fn from_elf(elf_data: &[u8], app_id: usize) {
     let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
@@ -692,7 +702,7 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
     let ph_count = elf_header.pt2.ph_count();
     let mut start_va: usize = usize::MAX;
     let mut end_va: usize = 0;
-    let mut offset=0;
+    let mut offset = 0;
     for i in 0..ph_count {
         let ph = elf.program_header(i).unwrap();
         let data = if let SegmentData::Undefined(data) = ph.get_data(&elf).unwrap() {
@@ -700,9 +710,9 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
         } else {
             panic!("can not parser elf!");
         };
-        if i==0{
+        if i == 0 {
             // println!("data:{:#x} phsy:{:#x}",data.as_ptr() as usize,get_app_phys_addr(app_id).start);
-            offset=data.as_ptr() as usize - get_app_phys_addr(app_id).start ;
+            offset = data.as_ptr() as usize - get_app_phys_addr(app_id).start;
         }
         if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
             start_va = if start_va < ph.virtual_addr() as usize {
@@ -721,14 +731,24 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
         start: start_va,
         end: end_va + PAGE_SIZE + USER_STACK_SIZE + PAGE_SIZE,
     };
-    let thread = create_thread(
-        app_id,
-        it_v_reg,
-        elf.header.pt2.entry_point() as usize ,
-        it_v_reg.end - PAGE_SIZE,
-        offset,1
-
-    );
-    init_core_state(thread);
+    if app_id == 0 {
+        let thread = create_thread(
+            app_id,
+            it_v_reg,
+            elf.header.pt2.entry_point() as usize,
+            it_v_reg.end - PAGE_SIZE,
+            offset,
+            1,
+        );
+        init_core_state(thread);
+    } else {
+        let thread = create_thread(
+            app_id,
+            it_v_reg,
+            elf.header.pt2.entry_point() as usize,
+            it_v_reg.end - PAGE_SIZE,
+            offset,
+            2,
+        );
+    }
 }
-
