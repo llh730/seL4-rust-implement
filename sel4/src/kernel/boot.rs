@@ -518,6 +518,7 @@ pub fn create_initial_thread(
     unsafe {
         cte_ptr = alloc::alloc::alloc(cte_layout);
     }
+    println!("create cte start :{:#x},end:{:#x}",cte_ptr as usize , cte_ptr as usize +cte_total_size);
     let mut rootCaps: [*const cte_t; tcbCNodeEntries] = [0 as *const cte_t; tcbCNodeEntries];
     for i in 0..tcbCNodeEntries {
         let ptr = (cte_ptr as usize + i * cte_size) as *mut cte_t;
@@ -612,13 +613,18 @@ pub fn create_thread(
     offset: usize,
     prio: usize,
 ) -> *const tcb_t {
+    println!("[kernel] create thread for app :{}", app_id);
     let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS);
     let layout = Layout::from_size_align(size, 4).ok().unwrap();
     let ptr: *mut u8;
     unsafe {
         ptr = alloc::alloc::alloc(layout);
     }
-
+    println!(
+        "create cnode ptr start :{:#x},end:{:#x}",
+        ptr as usize,
+        ptr as usize + size
+    );
     let cap = cap_cnode_cap_new(
         CONFIG_ROOT_CNODE_SIZE_BITS,
         BIT!(6) - CONFIG_ROOT_CNODE_SIZE_BITS,
@@ -636,11 +642,11 @@ pub fn create_thread(
     unsafe {
         vspace_ptr = alloc::alloc::alloc(vspace_layout);
     }
-    // println!(
-    //     "vspace start:{:#x} vspace end:{:#x}",
-    //     vspace_ptr as usize,
-    //     vspace_ptr as usize + vspace_size
-    // );
+    println!(
+        "vspace start:{:#x} vspace end:{:#x}",
+        vspace_ptr as usize,
+        vspace_ptr as usize + vspace_size
+    );
 
     let mut paddr = get_app_phys_addr(app_id);
     paddr.start += offset;
@@ -659,6 +665,7 @@ pub fn create_thread(
     unsafe {
         thread_ptr = alloc::alloc::alloc(thread_layout) as usize;
     }
+    println!("create thread start :{:#x},end:{:#x}",thread_ptr as usize , thread_ptr as usize +thread_size);
     let thread = create_initial_thread(
         thread_ptr,
         cap,
@@ -672,7 +679,6 @@ pub fn create_thread(
     setRegister(thread as *mut tcb_t, sp, it_v_reg.end - PAGE_SIZE - 8);
     thread
 }
-
 
 pub fn init_core_state(thread: *const tcb_t) {
     tcbSchedEnqueue(thread as *mut tcb_t);

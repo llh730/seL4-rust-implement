@@ -558,38 +558,6 @@ pub fn create_it_address_space(
     }
 }
 
-pub fn create_address_space_unalloced(
-    root_cnode_cap: *const cap_t,
-    it_v_reg: v_region_t,
-    vspace: usize,
-) -> *const cap_t {
-    copyGlobalMappings(vspace);
-    let lvl1pt_cap = cap_page_table_cap_new(2, vspace, 1, vspace);
-    let n = arch_get_n_paging(it_v_reg);
-    let size = n * PAGE_SIZE;
-    let layout = Layout::from_size_align(size, 4).ok().unwrap();
-    let ptr1: usize;
-    unsafe {
-        ptr1 = alloc::alloc::alloc(layout) as usize;
-    }
-    let mut i = 0;
-    let mut cnt = seL4_NumInitialCaps;
-    while i < CONFIG_PT_LEVELS - 1 {
-        let mut pt_vptr = ROUND_DOWN!(it_v_reg.start, RISCV_GET_LVL_PGSIZE_BITS(i));
-        let mut ptr = ptr1;
-        while pt_vptr < it_v_reg.end {
-            write_slot(
-                (cap_get_capPtr(root_cnode_cap) + mem::size_of::<cte_t>() * cnt) as *const cte_t,
-                create_it_pt_cap(lvl1pt_cap, ptr, pt_vptr, IT_ASID),
-            );
-            ptr += RISCV_GET_LVL_PGSIZE(i);
-            pt_vptr += RISCV_GET_LVL_PGSIZE(i);
-            cnt += 1;
-        }
-        i += 1;
-    }
-    lvl1pt_cap
-}
 
 pub fn create_address_space_alloced(
     cnode: usize,

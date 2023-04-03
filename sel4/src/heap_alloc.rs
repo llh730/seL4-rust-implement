@@ -11,7 +11,7 @@ pub fn init_heap() {
         HEAP_ALLOCATOR
             .lock()
             .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
-        // println!("KEAP SIZE :{:#x} :{:#x}",HEAP_SPACE.as_ptr() as usize , HEAP_SPACE.as_ptr() as usize +KERNEL_HEAP_SIZE);
+        println!("KEAP SIZE :{:#x} :{:#x}",HEAP_SPACE.as_ptr() as usize , HEAP_SPACE.as_ptr() as usize +KERNEL_HEAP_SIZE);
     }
     
 }

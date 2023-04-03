@@ -143,12 +143,11 @@ pub fn mdb_node_new(
     mdbPrev: usize,
 ) -> *const mdb_node_t {
     unsafe {
-        
         let mut mdb_node = mdb_node_t::default();
         let size = size_of::<mdb_node_t>();
         let layout = Layout::from_size_align(size, 4).ok().unwrap();
         let ptr = alloc::alloc::alloc(layout) as *mut mdb_node_t;
-        // println!("mdb ptr start :{:#x} ,end:{:#x}",ptr as usize,ptr as usize+size);
+        println!("create mdb ptr start :{:#x} ,end:{:#x}",ptr as usize,ptr as usize+size);
 
         mdb_node.words[0] = 0 | mdbPrev << 0;
 
@@ -341,7 +340,7 @@ pub fn cap_null_cap_new() -> *const cap_t {
         let layout = Layout::from_size_align(size, 4).ok().unwrap();
         let ptr = alloc::alloc::alloc(layout) as *mut cap_t;
         let mut cap = cap_t::default();
-
+        println!("create null cap start :{:#x},end:{:#x}",ptr as usize , ptr as usize +size);
         assert!(
             (cap_tag_t::cap_null_cap as usize & !0x1fusize)
                 == (if true && (cap_tag_t::cap_null_cap as usize & (1usize << 38)) != 0 {
@@ -829,6 +828,11 @@ pub fn cap_cnode_cap_new(
         let layout = Layout::from_size_align(size, 4).ok().unwrap();
         let ptr = alloc::alloc::alloc(layout) as *mut cap_t;
         /* fail if user has passed bits that we will override */
+        println!(
+            "create cnode cap start :{:#x} , end :{:#x}",
+            ptr as usize,
+            ptr as usize + size
+        );
         assert!(
             (capCNodeRadix & !0x3fusize)
                 == (if true && (capCNodeRadix & (1usize << 38)) != 0 {
@@ -1324,7 +1328,7 @@ pub fn cap_frame_cap_get_capFIsDevice(_cap: *const cap_t) -> usize {
 pub fn cap_frame_cap_get_capFMappedAddress(_cap: *const cap_t) -> usize {
     unsafe {
         let cap = *_cap;
-        let ret = (cap.words[0] & 0x7fffffffffusize) <<0;
+        let ret = (cap.words[0] & 0x7fffffffffusize) << 0;
         ret
     }
 }
@@ -1418,6 +1422,7 @@ pub fn thread_state_new() -> *const thread_state_t {
         let size = size_of::<thread_state_t>();
         let layout = Layout::from_size_align(size, 4).ok().unwrap();
         let ptr = alloc::alloc::alloc(layout) as *mut thread_state_t;
+        println!("create null cap start :{:#x},end:{:#x}",ptr as usize , ptr as usize +size);
         let state = thread_state_t { words: [0; 3] };
         *ptr = state;
         ptr

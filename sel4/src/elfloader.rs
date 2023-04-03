@@ -129,45 +129,6 @@ pub fn load_apps() {
         dst.copy_from_slice(src);
     }
 }
-pub fn create_thread_for_tasks() {
-    unsafe {
-        let num_app = get_num_app();
-        let mut index = 0;
-        while index < num_app {
-            let state_size = mem::size_of::<thread_state_t>();
-            let state_layout = Layout::from_size_align(state_size, 4).ok().unwrap();
-            let state = alloc::alloc::alloc(state_layout) as *const thread_state_t;
-            thread_state_set_tsType(state as *mut thread_state_t, ThreadStateInactive);
-            let tcb_size = mem::size_of::<tcb_t>();
-            let tcb_layout = Layout::from_size_align(tcb_size, 4).ok().unwrap();
-            let tcb_ptr = alloc::alloc::alloc(tcb_layout) as *mut tcb_t;
-            let tcb = tcb_t {
-                tcbArch: arch_tcb_t::app_init_context(
-                    get_base_i(index),
-                    USER_STACK[index].get_sp(),
-                ),
-                tcbState: state,
-                seL4_Fault_t: 0,
-                tcbLookupFailure: 0,
-                domain: 0,
-                tcbMCP: 0,
-                tcbPriority: 0,
-                tcbTimeSlice: 0,
-                tcbFaultHandler: 0,
-                tcbIPCBuffer: 0,
-                tcbSchedNext: 0,
-                tcbSchedPrev: 0,
-                tcbEPNext: 0,
-                tcbEPPrev: 0,
-                rootCap: [0 as *const cte_t; tcbCNodeEntries],
-                tcbName: String::from(" "),
-            };
-            *tcb_ptr = tcb;
-            THREAD[index] = tcb_ptr as usize;
-            index += 1;
-        }
-    }
-}
 
 
 pub fn run_first_task() {
