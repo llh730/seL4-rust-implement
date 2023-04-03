@@ -28,7 +28,6 @@ pub const PAGE_BITS: usize = seL4_PageBits;
 pub const PPTR_TOP: usize = 0xFFFFFFFF80000000;
 pub const physBase: usize = 0x80000000;
 pub const KERNEL_ELF_PADDR_BASE: usize = physBase + 0x200000;
-// pub const KERNEL_ELF_BASE: usize =KERNEL_ELF_PADDR_BASE;
 pub const KERNEL_ELF_BASE: usize = PPTR_TOP + (KERNEL_ELF_PADDR_BASE & MASK!(30));
 pub const KDEV_BASE: usize = 0xFFFFFFFFC0000000;
 pub const KS_LOG_PPTR: usize = 0xFFFFFFFFFFE00000;

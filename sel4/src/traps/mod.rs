@@ -125,7 +125,7 @@ pub fn trap_handler() {
                 shutdown();
             }
             RISCVSupervisorTimer => {
-                println!("supervisor timer");
+                // println!("supervisor timer");
                 set_next_trigger();
                 restore_user_context();
             }

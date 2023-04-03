@@ -1,12 +1,15 @@
+use crate::config::SchedulerAction_ChooseNewThread;
 use crate::elfloader::{mark_current_exited, mark_current_suspended, run_next_task};
 use crate::kernel::thread::{
-    activateThread, ksCurThread, rescheduleRequired, schedule, tcbSchedDequeue, tcb_t, tcbSchedAppend,
+    activateThread, ksCurThread, rescheduleRequired, schedule, tcbSchedDequeue, tcb_t, tcbSchedAppend, ksSchedulerAction, setThreadState, ThreadStateExited,
 };
+use crate::println;
 use crate::sbi::shutdown;
 use crate::tasks::{exit_current_and_run_next, suspend_current_and_run_next};
 // use crate::tasks::{exit_current_and_run_next, suspend_current_and_run_next};
 // use crate::tasks::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus};
 use crate::timer::get_time_us;
+use crate::traps::restore_user_context;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -34,14 +37,17 @@ pub struct TimeVal {
 // }
 
 pub fn sys_exit(exit_code: i32) -> ! {
-    info!("[kernel] Application exited with code {}", exit_code);
-    // unsafe {
-    //     tcbSchedDequeue(ksCurThread as *const tcb_t);
-    // }
-    // rescheduleRequired();
-    // schedule();
-    // activateThread();
-    shutdown();
+    println!("[kernel] Application exited with code {}", exit_code);
+    unsafe {
+        tcbSchedDequeue(ksCurThread as *const tcb_t);
+        ksSchedulerAction = SchedulerAction_ChooseNewThread;
+        setThreadState(ksCurThread as *const tcb_t, ThreadStateExited);
+    }
+    rescheduleRequired();
+    schedule();
+    activateThread();
+    restore_user_context();
+    // shutdown();
     panic!("Unreachable in sys_exit!");
 }
 

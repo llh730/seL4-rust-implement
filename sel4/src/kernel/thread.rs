@@ -9,7 +9,9 @@ use crate::{
     },
     elfloader::KERNEL_STACK,
     kernel::object::objecttype::cap_reply_cap,
-    BIT, MASK, println,
+    println,
+    sbi::shutdown,
+    BIT, MASK,
 };
 use alloc::string::String;
 use core::arch::asm;
@@ -189,6 +191,9 @@ pub fn Arch_initContext(context: *mut arch_tcb_t) {
 
 #[inline]
 pub fn isStopped(thread: *const tcb_t) -> bool {
+    if thread as usize == 0 || thread as usize == 1 {
+        return true;
+    }
     unsafe {
         match thread_state_get_tsType((*thread).tcbState) {
             ThreadStateInactive => true,
@@ -203,7 +208,14 @@ pub fn isStopped(thread: *const tcb_t) -> bool {
 
 #[inline]
 pub fn isRunnable(thread: *const tcb_t) -> bool {
+    if thread as usize == 0 || thread as usize == 1 {
+        return false;
+    }
     unsafe {
+        // println!(
+        //     "kscurthread state:{}",
+        //     thread_state_get_tsType((*thread).tcbState)
+        // );
         match thread_state_get_tsType((*thread).tcbState) {
             ThreadStateRunning => true,
             ThreadStateRestart => true,
@@ -238,7 +250,8 @@ pub fn getHighestPrio(dom: usize) -> prio_t {
     unsafe {
         let l1index = wordBits - 1 - ksReadyQueuesL1Bitmap[dom].leading_zeros() as usize;
         let l1index_inverted = invert_l1index(l1index);
-        let l2index = wordBits - 1 - ksReadyQueuesL2Bitmap[dom][l1index_inverted];
+        let l2index =
+            wordBits - 1 - ksReadyQueuesL2Bitmap[dom][l1index_inverted].leading_zeros() as usize;
         l1index_to_prio(l1index) | l2index
     }
 }
@@ -253,8 +266,13 @@ pub fn addToBitmap(dom: usize, prio: usize) {
     unsafe {
         let l1index = prio_to_l1index(prio);
         let l1index_inverted = invert_l1index(l1index);
+        // println!(
+        //     "before add bitmap:{} , prio:{}",
+        //     ksReadyQueuesL1Bitmap[dom], prio
+        // );
         ksReadyQueuesL1Bitmap[dom] |= BIT!(l1index);
         ksReadyQueuesL2Bitmap[dom][l1index_inverted] |= BIT!(prio & MASK!(wordRadix));
+        // println!("after add bitmap:{} ,prio:{}", ksReadyQueuesL1Bitmap[dom], prio);
     }
 }
 
@@ -263,9 +281,12 @@ pub fn removeFromBitmap(dom: usize, prio: usize) {
     unsafe {
         let l1index = prio_to_l1index(prio);
         let l1index_inverted = invert_l1index(l1index);
-        if ksReadyQueuesL2Bitmap[dom][l1index_inverted] != 0 {
-            ksReadyQueuesL1Bitmap[dom] &= !BIT!((l1index));
+        // println!("before remove bitmap:{} ,prio:{}", ksReadyQueuesL1Bitmap[dom], prio);
+        ksReadyQueuesL2Bitmap[dom][l1index_inverted] &=! BIT!(prio&MASK!(wordRadix));
+        if ksReadyQueuesL2Bitmap[dom][l1index_inverted] == 0 {
+            ksReadyQueuesL1Bitmap[dom] &= !(BIT!((l1index)));
         }
+        // println!("after remove bitmap:{} ,prio:{}", ksReadyQueuesL1Bitmap[dom], prio);
     }
 }
 
@@ -277,12 +298,20 @@ pub fn tcbSchedEnqueue(_tcb: *mut tcb_t) {
             let prio = tcb.tcbPriority;
             let idx = ready_queues_index(dom, prio);
             let mut queue = ksReadyQueues[idx];
+            // println!(
+            //     " before enqueue queue head :{:#x} ,tail :{:#x}",
+            //     queue.head, queue.tail
+            // );
             if queue.tail == 0 {
                 queue.head = _tcb as *const tcb_t as usize;
                 addToBitmap(dom, prio);
             } else {
                 (*(queue.tail as *mut tcb_t)).tcbSchedNext = tcb as *const tcb_t as usize;
             }
+            // println!(
+            //     "after enqueue queue head :{:#x} ,tail :{:#x}",
+            //     queue.head, queue.tail
+            // );
             (*_tcb).tcbSchedPrev = queue.tail;
             (*_tcb).tcbSchedNext = 0;
             ksReadyQueues[idx] = queue;
@@ -310,7 +339,9 @@ pub fn tcbSchedDequeue(_tcb: *const tcb_t) {
                     removeFromBitmap(dom, prio);
                 }
             }
-
+            // println!("in here");
+            // let prio = getHighestPrio(dom);
+            // println!("in dequeue prio:{}",prio);
             if tcb.tcbSchedNext != 0 {
                 (*(tcb.tcbSchedNext as *mut tcb_t)).tcbSchedPrev = tcb.tcbSchedPrev;
             } else {
@@ -328,10 +359,10 @@ pub fn tcbSchedAppend(tcb: *mut tcb_t) {
         if thread_state_get_tcbQueued((*tcb).tcbState) == 0 {
             let dom = (*tcb).domain;
             let prio = (*tcb).tcbPriority;
-            println!("{} {}",dom,prio);
+            println!("{} {}", dom, prio);
             let idx = ready_queues_index(dom, prio);
             let mut queue = ksReadyQueues[idx];
-            println!("tail:{:#x} head:{:#x}", queue.tail, queue.head);
+            // println!("tail:{:#x} head:{:#x}", queue.tail, queue.head);
             if queue.head == 0 {
                 queue.head = tcb as usize;
                 addToBitmap(dom, prio);
@@ -339,7 +370,7 @@ pub fn tcbSchedAppend(tcb: *mut tcb_t) {
                 let next = queue.tail as *mut tcb_t;
                 (*next).tcbSchedNext = tcb as usize;
             }
-            println!("tail:{:#x} head:{:#x}", queue.tail, queue.head);
+            // println!("tail:{:#x} head:{:#x}", queue.tail, queue.head);
             (*tcb).tcbSchedPrev = queue.tail;
             (*tcb).tcbSchedNext = 0;
             ksReadyQueues[idx] = queue;
@@ -513,12 +544,14 @@ pub fn chooseThread() {
         let dom = 0;
         if ksReadyQueuesL1Bitmap[dom] != 0 {
             let prio = getHighestPrio(dom);
+            // println!("prio:{}", prio);
             let _thread = ksReadyQueues[ready_queues_index(dom, prio)].head;
             assert!(_thread != 0);
             let thread = _thread as *const tcb_t;
             switchToThread(thread);
         } else {
-            switchToIdleThread();
+            // println!("all applications finished! turn to shutdown");
+            shutdown();
         }
     }
 }
@@ -588,8 +621,10 @@ pub fn rescheduleRequired() {
 
 pub fn schedule() {
     unsafe {
+        // println!("ksSchedulerAction:{}", ksSchedulerAction);
         if ksSchedulerAction != SchedulerAction_ResumeCurrentThread {
             let was_runnable: bool;
+            // println!("isRunnable:{}", isRunnable(ksCurThread as *const tcb_t));
             if isRunnable(ksCurThread as *const tcb_t) {
                 was_runnable = true;
                 tcbSchedEnqueue(ksCurThread as *mut tcb_t);
@@ -619,7 +654,6 @@ pub fn schedule() {
             }
         }
         ksSchedulerAction = SchedulerAction_ResumeCurrentThread;
-        println!("out schedule");
     }
 }
 

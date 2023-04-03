@@ -1494,7 +1494,7 @@ pub fn thread_state_set_blockingIPCIsCall(thread_state_ptr: *mut thread_state_t,
 #[inline]
 pub fn thread_state_get_tcbQueued(thread_state_ptr: *const thread_state_t) -> usize {
     unsafe {
-        let ret = ((*thread_state_ptr).words[1] & 0x2usize) >> 0;
+        let ret = ((*thread_state_ptr).words[1] & 0x1usize) >> 0;
         ret
     }
 }

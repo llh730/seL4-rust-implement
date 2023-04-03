@@ -522,7 +522,6 @@ pub fn create_initial_thread(
     for i in 0..tcbCNodeEntries {
         let ptr = (cte_ptr as usize + i * cte_size) as *mut cte_t;
         unsafe {
-
             (*ptr).cap = cap_null_cap_new() as *mut cap_t;
             (*ptr).cteMDBNode = mdb_node_new(0, 0, 0, 0) as *mut mdb_node_t;
         }
@@ -645,7 +644,6 @@ pub fn create_thread(
 
     let mut paddr = get_app_phys_addr(app_id);
     paddr.start += offset;
-    // println!("addr:{:#x}",paddr.start);
     let it_pd_cap = create_address_space_alloced(
         cap_get_capPtr(cap),
         cap,
@@ -670,9 +668,6 @@ pub fn create_thread(
         ipcbuf_cap,
         String::from("first thread"),
     );
-    unsafe {
-        ksCurThread = thread as usize;
-    }
     setPriority(thread, prio);
     setRegister(thread as *mut tcb_t, sp, it_v_reg.end - PAGE_SIZE - 8);
     thread
@@ -682,8 +677,8 @@ pub fn create_thread(
 pub fn init_core_state(thread: *const tcb_t) {
     tcbSchedEnqueue(thread as *mut tcb_t);
     unsafe {
-        ksSchedulerAction = 0;
-        ksCurThread = thread as usize;
+        ksSchedulerAction = thread as usize;
+        ksCurThread = 0;
     }
 }
 
