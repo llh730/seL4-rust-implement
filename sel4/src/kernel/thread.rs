@@ -174,7 +174,7 @@ pub static mut ksCurThread: usize = 0;
 
 pub static mut ksIdleThread: usize = 0;
 
-pub static mut ksSchedulerAction: usize = 0;
+pub static mut ksSchedulerAction: usize = 1;
 
 static mut ksReadyQueues: [tcb_queue_t; NUM_READY_QUEUES] =
     [tcb_queue_t { head: 0, tail: 0 }; NUM_READY_QUEUES];
@@ -314,8 +314,9 @@ pub fn tcbSchedEnqueue(_tcb: *mut tcb_t) {
             // );
             (*_tcb).tcbSchedPrev = queue.tail;
             (*_tcb).tcbSchedNext = 0;
-            ksReadyQueues[idx] = queue;
             queue.tail = tcb as *const tcb_t as usize;
+            ksReadyQueues[idx] = queue;
+            
 
             thread_state_set_tcbQueued(tcb.tcbState as *mut thread_state_t, 1);
         }
@@ -334,14 +335,11 @@ pub fn tcbSchedDequeue(_tcb: *const tcb_t) {
             if tcb.tcbSchedPrev != 0 {
                 (*(tcb.tcbSchedPrev as *mut tcb_t)).tcbSchedNext = tcb.tcbSchedNext;
             } else {
-                queue.tail = tcb.tcbSchedNext;
+                queue.head = tcb.tcbSchedNext;
                 if tcb.tcbSchedNext == 0 {
                     removeFromBitmap(dom, prio);
                 }
             }
-            // println!("in here");
-            // let prio = getHighestPrio(dom);
-            // println!("in dequeue prio:{}",prio);
             if tcb.tcbSchedNext != 0 {
                 (*(tcb.tcbSchedNext as *mut tcb_t)).tcbSchedPrev = tcb.tcbSchedPrev;
             } else {
@@ -359,7 +357,6 @@ pub fn tcbSchedAppend(tcb: *mut tcb_t) {
         if thread_state_get_tcbQueued((*tcb).tcbState) == 0 {
             let dom = (*tcb).domain;
             let prio = (*tcb).tcbPriority;
-            println!("{} {}", dom, prio);
             let idx = ready_queues_index(dom, prio);
             let mut queue = ksReadyQueues[idx];
             // println!("tail:{:#x} head:{:#x}", queue.tail, queue.head);
@@ -482,7 +479,7 @@ pub fn activateThread() {
                 Arch_switchToThread(thread);
             }
             ThreadStateIdleThreadState => return,
-            _ => panic!("current thread is blocked"),
+            _ => panic!("current thread is blocked , state id :{}",thread_state_get_tsType((*thread).tcbState as *const thread_state_t)),
         }
     }
 }
@@ -553,7 +550,7 @@ pub fn chooseThread() {
             let thread = _thread as *const tcb_t;
             switchToThread(thread);
         } else {
-            // println!("all applications finished! turn to shutdown");
+            println!("[kernel] all applications finished! turn to shutdown");
             shutdown();
         }
     }
@@ -642,12 +639,14 @@ pub fn schedule() {
                 let fastfail = ksCurThread == ksIdleThread
                     || (*candidate).tcbPriority < (*(ksCurThread as *const tcb_t)).tcbPriority;
                 if fastfail && !isHighestPrio(ksCurDomain, (*candidate).tcbPriority) {
+                    println!("in fast fail");
                     tcbSchedEnqueue(candidate as *mut tcb_t);
                     ksSchedulerAction = SchedulerAction_ChooseNewThread;
                     scheduleChooseNewThread();
                 } else if was_runnable
                     && (*candidate).tcbPriority == (*(ksCurThread as *const tcb_t)).tcbPriority
                 {
+                    println!("in else if");
                     tcbSchedAppend(candidate as *mut tcb_t);
                     ksSchedulerAction = SchedulerAction_ChooseNewThread;
                     scheduleChooseNewThread();

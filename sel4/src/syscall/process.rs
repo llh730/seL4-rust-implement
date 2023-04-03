@@ -36,7 +36,7 @@ pub struct TimeVal {
 //     time: usize
 // }
 
-pub fn sys_exit(exit_code: i32) -> ! {
+pub fn sys_exit(exit_code: i32) -> isize {
     println!("[kernel] Application exited with code {}", exit_code);
     unsafe {
         tcbSchedDequeue(ksCurThread as *const tcb_t);
@@ -47,19 +47,18 @@ pub fn sys_exit(exit_code: i32) -> ! {
     schedule();
     activateThread();
     restore_user_context();
-    // shutdown();
-    panic!("Unreachable in sys_exit!");
+    0
 }
 
 pub fn sys_yield() -> isize {
     info!("[kernel] Application yield");
-    // unsafe {
-    //     tcbSchedDequeue(ksCurThread as *const tcb_t);
-    //     tcbSchedAppend(ksCurThread as *mut tcb_t);
-    // }
-    // rescheduleRequired();
-    // schedule();
-    // activateThread();
+    unsafe {
+        tcbSchedDequeue(ksCurThread as *const tcb_t);
+        tcbSchedAppend(ksCurThread as *mut tcb_t);
+    }
+    rescheduleRequired();
+    schedule();
+    activateThread();
     0
 }
 

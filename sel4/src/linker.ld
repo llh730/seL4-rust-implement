@@ -61,12 +61,7 @@ SECTIONS
         *(.bss.aligned)
     }
 
-    ._idle_thread :
-    {
-        *(._idle_thread)
-    }
-
-    . = . + 4K;
+    . = . + 8K;
     . = ALIGN(4K);
     skernel_stack_alloc = .;
     .kernel_stack :

@@ -22,7 +22,7 @@ use crate::{
             cap_frame_cap_get_capFMappedAddress, cap_null_cap_new, mdb_node_new, thread_state_new,
         },
         thread::{configureIdleThread, SSTATUS},
-        vspace::{create_address_space_alloced, setVMRoot},
+        vspace::{create_address_space_alloced},
     },
     println, traps, BIT, ROUND_DOWN, ROUND_UP,
 };
@@ -614,7 +614,7 @@ pub fn create_thread(
     prio: usize,
 ) -> *const tcb_t {
     println!("[kernel] create thread for app :{}", app_id);
-    let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS)*mem::size_of::<cte_t>();
+    let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS) * mem::size_of::<cte_t>();
     let layout = Layout::from_size_align(size, 4).ok().unwrap();
     let ptr: *mut u8;
     unsafe {
@@ -636,7 +636,7 @@ pub fn create_thread(
         cap,
     );
     let n = arch_get_n_paging(it_v_reg);
-    let vspace_size = BIT!(seL4_VSpaceBits) * (n+1);
+    let vspace_size = BIT!(seL4_VSpaceBits) * (n + 1);
     let vspace_layout = Layout::from_size_align(vspace_size, 4).ok().unwrap();
     let vspace_ptr: *mut u8;
     unsafe {
@@ -675,7 +675,9 @@ pub fn create_thread(
         ipcbuf_cap,
         String::from("first thread"),
     );
-    setPriority(thread, prio);
+    unsafe {
+        (*(thread as *mut tcb_t)).tcbPriority = prio;
+    }
     setRegister(thread as *mut tcb_t, sp, it_v_reg.end - PAGE_SIZE - 8);
     thread
     // 0 as *const tcb_t
@@ -752,5 +754,6 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
             offset,
             2,
         );
+        tcbSchedEnqueue(thread as *mut tcb_t);
     }
 }

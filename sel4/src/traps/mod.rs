@@ -14,7 +14,10 @@ use crate::{
     },
     elfloader::{mark_current_exited, mark_current_suspended, run_next_task, THREAD},
     kernel::{
-        thread::{arch_tcb_t, ksCurThread, n_contextRegisters, setRegister, tcb_t, NextIP},
+        thread::{
+            arch_tcb_t, ksCurThread, n_contextRegisters, setRegister, tcbSchedEnqueue, tcb_t,
+            NextIP, rescheduleRequired, schedule, activateThread,
+        },
         vspace::{activate_kernel_vspace, setVSpaceRoot},
     },
     println,
@@ -93,7 +96,7 @@ pub fn trap_handler() {
             RISCVEnvCall => {
                 let mut cx = (&((*(ksCurThread as *const tcb_t)).tcbArch)) as *const arch_tcb_t
                     as *mut arch_tcb_t;
-                (*cx).registers[NextIP] += sepc+4;
+                (*cx).registers[NextIP] += sepc + 4;
                 (*cx).registers[9] = syscall(
                     (*cx).registers[16],
                     [(*cx).registers[9], (*cx).registers[10], (*cx).registers[11]],
@@ -111,20 +114,23 @@ pub fn trap_handler() {
                 shutdown();
                 // mark_current_exited();
                 // run_next_task();
-                // restore_user_context();
             }
             RISCVInstructionIllegal => {
                 println!("[kernel] IllegalInstruction in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.", sepc,stval, scause);
                 shutdown();
             }
             RISCVSupervisorTimer => {
-                // println!("supervisor timer");
                 set_next_trigger();
+                // tcbSchedEnqueue(ksCurThread as *mut tcb_t);
+                // rescheduleRequired();
+                // schedule();
+                // activateThread();
                 restore_user_context();
             }
             _ => {
                 panic!("Unsupported trap {}, stval = {:#x}!", scause, stval);
             }
         }
+        restore_user_context();
     }
 }

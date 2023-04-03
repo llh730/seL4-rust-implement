@@ -499,14 +499,8 @@ pub fn setVMRoot(thread: *mut tcb_t) {
         //     setVSpaceRoot(kernel_root_pageTable.as_ptr() as usize, 0);
         //     return;
         // }
+        // println!("get virtual base address :{:#x}",lvl1pt);
         setVSpaceRoot(lvl1pt, asid);
-        // let slot = lookupPTSlot(lvl1pt, 0xc0000000);
-        // println!(
-        //     "lvl1pt:{:#x} ,slot:{:#x}, *slot:{:#x}",
-        //     lvl1pt,
-        //     slot.ptSlot,
-        //     *(slot.ptSlot as *const usize)
-        // );
     }
 }
 
