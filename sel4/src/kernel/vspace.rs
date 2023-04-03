@@ -108,7 +108,7 @@ pub unsafe fn sfence() {
 #[no_mangle]
 pub fn setVSpaceRoot(addr: paddr_t, asid: usize) {
     let satp = satp_new(8usize, asid, addr >> 12);
-    // println!("addr:{:#x}",addr);
+    // println!("in setVSpaceRoot addr:{:#x}",addr);
     unsafe {
         satp::write(satp.words);
         sfence();

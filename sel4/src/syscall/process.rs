@@ -1,7 +1,7 @@
 use crate::config::SchedulerAction_ChooseNewThread;
 use crate::elfloader::{mark_current_exited, mark_current_suspended, run_next_task};
 use crate::kernel::thread::{
-    activateThread, ksCurThread, rescheduleRequired, schedule, tcbSchedDequeue, tcb_t, tcbSchedAppend, ksSchedulerAction, setThreadState, ThreadStateExited,
+    activateThread, ksCurThread, rescheduleRequired, schedule, tcbSchedDequeue, tcb_t, tcbSchedAppend, ksSchedulerAction, setThreadState, ThreadStateExited, tcbSchedEnqueue,
 };
 use crate::println;
 use crate::sbi::shutdown;
@@ -53,8 +53,8 @@ pub fn sys_exit(exit_code: i32) -> isize {
 pub fn sys_yield() -> isize {
     info!("[kernel] Application yield");
     unsafe {
-        tcbSchedDequeue(ksCurThread as *const tcb_t);
-        tcbSchedAppend(ksCurThread as *mut tcb_t);
+        // tcbSchedDequeue(ksCurThread as *const tcb_t);
+        tcbSchedEnqueue(ksCurThread as *mut tcb_t);
     }
     rescheduleRequired();
     schedule();

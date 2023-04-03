@@ -16,7 +16,7 @@ use crate::{
     kernel::{
         thread::{
             arch_tcb_t, ksCurThread, n_contextRegisters, setRegister, tcbSchedEnqueue, tcb_t,
-            NextIP, rescheduleRequired, schedule, activateThread,
+            NextIP, rescheduleRequired, schedule, activateThread, getRegister, FaultIP,
         },
         vspace::{activate_kernel_vspace, setVSpaceRoot},
     },
@@ -96,12 +96,12 @@ pub fn trap_handler() {
             RISCVEnvCall => {
                 let mut cx = (&((*(ksCurThread as *const tcb_t)).tcbArch)) as *const arch_tcb_t
                     as *mut arch_tcb_t;
-                (*cx).registers[NextIP] += sepc + 4;
+                (*cx).registers[NextIP] = sepc + 4;
+                // println!("sepc:{:#x}",(*cx).registers[NextIP]);
                 (*cx).registers[9] = syscall(
                     (*cx).registers[16],
                     [(*cx).registers[9], (*cx).registers[10], (*cx).registers[11]],
                 ) as usize;
-                setRegister(ksCurThread as *const tcb_t as *mut tcb_t, NextIP, sepc + 4);
                 restore_user_context();
             }
             RISCVStoreAccessFault
@@ -125,6 +125,7 @@ pub fn trap_handler() {
                 // rescheduleRequired();
                 // schedule();
                 // activateThread();
+                setRegister(ksCurThread as *mut tcb_t, NextIP, getRegister(ksCurThread as *mut tcb_t, FaultIP));
                 restore_user_context();
             }
             _ => {

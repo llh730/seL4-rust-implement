@@ -642,11 +642,13 @@ pub fn create_thread(
     unsafe {
         vspace_ptr = alloc::alloc::alloc(vspace_layout);
     }
-    // println!(
-    //     "vspace start:{:#x} vspace end:{:#x}",
-    //     vspace_ptr as usize,
-    //     vspace_ptr as usize + vspace_size
-    // );
+    println!(
+        "vspace start:{:#x} vspace end:{:#x}",
+        vspace_ptr as usize,
+        vspace_ptr as usize + vspace_size
+    );
+
+    println!("virtual address :{:#x} - {:#x}",it_v_reg.start,it_v_reg.end);
 
     let mut paddr = get_app_phys_addr(app_id);
     paddr.start += offset;
@@ -680,7 +682,6 @@ pub fn create_thread(
     }
     setRegister(thread as *mut tcb_t, sp, it_v_reg.end - PAGE_SIZE - 8);
     thread
-    // 0 as *const tcb_t
 }
 
 pub fn init_core_state(thread: *const tcb_t) {
@@ -742,7 +743,7 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
             elf.header.pt2.entry_point() as usize,
             it_v_reg.end - PAGE_SIZE,
             offset,
-            1,
+            2,
         );
         init_core_state(thread);
     } else {
