@@ -1,10 +1,6 @@
 use core::arch::asm;
 
-use riscv::register::{
-    mtvec::TrapMode,
-    scause::{self, Exception, Interrupt, Trap},
-    sie, stval, stvec,
-};
+use riscv::register::{mtvec::TrapMode, sie, stval, stvec};
 
 use crate::{
     config::{
@@ -12,14 +8,7 @@ use crate::{
         RISCVInstructionPageFault, RISCVLoadAccessFault, RISCVLoadPageFault, RISCVStoreAccessFault,
         RISCVStorePageFault, RISCVSupervisorTimer,
     },
-    elfloader::{mark_current_exited, mark_current_suspended, run_next_task, THREAD},
-    kernel::{
-        thread::{
-            arch_tcb_t, ksCurThread, n_contextRegisters, setRegister, tcbSchedEnqueue, tcb_t,
-            NextIP, rescheduleRequired, schedule, activateThread, getRegister, FaultIP,
-        },
-        vspace::{activate_kernel_vspace, setVSpaceRoot},
-    },
+    kernel::thread::{arch_tcb_t, getRegister, ksCurThread, setRegister, tcb_t, FaultIP, NextIP},
     println,
     sbi::shutdown,
     syscall::syscall,
@@ -112,8 +101,6 @@ pub fn trap_handler() {
             | RISCVLoadPageFault => {
                 println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.",sepc, stval, scause);
                 shutdown();
-                // mark_current_exited();
-                // run_next_task();
             }
             RISCVInstructionIllegal => {
                 println!("[kernel] IllegalInstruction in application, bad addr = {:#x}, bad instruction = {:#x},scause:{}, core dumped.", sepc,stval, scause);
@@ -125,7 +112,11 @@ pub fn trap_handler() {
                 // rescheduleRequired();
                 // schedule();
                 // activateThread();
-                setRegister(ksCurThread as *mut tcb_t, NextIP, getRegister(ksCurThread as *mut tcb_t, FaultIP));
+                setRegister(
+                    ksCurThread as *mut tcb_t,
+                    NextIP,
+                    getRegister(ksCurThread as *mut tcb_t, FaultIP),
+                );
                 restore_user_context();
             }
             _ => {

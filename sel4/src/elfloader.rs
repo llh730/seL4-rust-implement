@@ -1,24 +1,6 @@
-use core::{alloc::Layout, mem};
-
-use alloc::string::String;
-
 use crate::{
-    config::{
-        tcbCNodeEntries, APP_BASE_ADDRESS, APP_SIZE_LIMIT, KERNEL_STACK_SIZE, MAX_APP_NUM,
-        USER_STACK_SIZE,
-    },
-    kernel::{
-        boot::p_region_t,
-        object::structures::{
-            cte_t, thread_state_get_tsType, thread_state_set_tsType, thread_state_t,
-        },
-        thread::{
-            arch_tcb_t, ksCurThread, tcb_t, ThreadStateExited, ThreadStateInactive,
-            ThreadStateRunning,
-        },
-    },
-    println,
-    traps::restore_user_context,
+    config::{APP_BASE_ADDRESS, APP_SIZE_LIMIT, KERNEL_STACK_SIZE, MAX_APP_NUM, USER_STACK_SIZE},
+    kernel::{boot::p_region_t, thread::arch_tcb_t},
 };
 #[repr(align(4096))]
 #[derive(Copy, Clone)]
@@ -114,73 +96,13 @@ pub fn load_apps() {
     }
     for i in 0..num_app {
         let base_i = get_base_i(i);
-        // println!("in here");
         (base_i..base_i + APP_SIZE_LIMIT)
             .for_each(|addr| unsafe { (addr as *mut u8).write_volatile(0) });
-        // println!("in here");
         let src = unsafe {
             core::slice::from_raw_parts(app_start[i] as *const u8, app_start[i + 1] - app_start[i])
         };
 
         let dst = unsafe { core::slice::from_raw_parts_mut(base_i as *mut u8, src.len()) };
         dst.copy_from_slice(src);
-    }
-}
-
-pub fn run_first_task() {
-    unsafe {
-        ksCurThread = 0;
-        let tcb = ksCurThread as *const tcb_t;
-        thread_state_set_tsType((*tcb).tcbState as *mut thread_state_t, ThreadStateRunning);
-        restore_user_context();
-    }
-}
-
-pub fn mark_current_suspended() {
-    unsafe {
-        thread_state_set_tsType(
-            (*(ksCurThread as *const tcb_t)).tcbState as *mut thread_state_t,
-            ThreadStateInactive,
-        );
-    }
-}
-
-pub fn mark_current_exited() {
-    unsafe {
-        thread_state_set_tsType(
-            (*(ksCurThread as *const tcb_t)).tcbState as *mut thread_state_t,
-            ThreadStateExited,
-        );
-    }
-}
-
-pub fn run_next_task() {
-    unsafe {
-        let next = find_next_task();
-        if next == usize::MAX {
-            panic!("All applications completed!");
-        }
-        let next_tcb = THREAD[next] as *const tcb_t;
-        thread_state_set_tsType(
-            (*next_tcb).tcbState as *mut thread_state_t,
-            ThreadStateRunning,
-        );
-        ksCurThread = next;
-    }
-}
-
-pub fn find_next_task() -> usize {
-    unsafe {
-        let mut i = 0;
-        let num_app = get_num_app();
-        while i < num_app {
-            if thread_state_get_tsType((*(THREAD[i] as *const tcb_t)).tcbState)
-                == ThreadStateInactive
-            {
-                return i;
-            }
-            i += 1;
-        }
-        usize::MAX
     }
 }

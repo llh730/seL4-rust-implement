@@ -1,10 +1,6 @@
-use core::{
-    alloc::Layout,
-    arch::{self, asm},
-    mem::{self, size_of},
-};
+use core::{alloc::Layout, arch::asm, mem::size_of};
 
-use alloc::{format, string::String};
+use alloc::string::String;
 use xmas_elf::program::SegmentData;
 
 use crate::{
@@ -16,12 +12,10 @@ use crate::{
         BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG,
         PAGE_BITS, PAGE_SIZE, SIE_SEIE, SIE_STIE, USER_STACK_SIZE,
     },
-    elfloader::{get_app_data, get_app_phys_addr, get_num_app, USER_STACK, load_apps},
+    elfloader::{get_app_data, get_app_phys_addr, get_num_app, load_apps},
     kernel::{
-        object::structures::{
-            cap_frame_cap_get_capFMappedAddress, cap_null_cap_new, mdb_node_new, thread_state_new,
-        },
-        thread::{configureIdleThread, SSTATUS},
+        object::structures::{cap_null_cap_new, mdb_node_new, thread_state_new},
+        thread::configureIdleThread,
         vspace::create_address_space_alloced,
     },
     println, traps, BIT, ROUND_DOWN, ROUND_UP,
@@ -30,7 +24,7 @@ use crate::{
 use super::{
     object::{
         cap::cteInsert,
-        objecttype::{cap_get_capPtr, cap_thread_cap, deriveCap},
+        objecttype::{cap_get_capPtr, deriveCap},
         structures::{
             cap_cnode_cap_new, cap_domain_cap_new, cap_endpoint_cap_new, cap_frame_cap_new, cap_t,
             cap_thread_cap_new, cte_t, endpoint_t, mdb_node_set_mdbFirstBadged,
@@ -39,12 +33,12 @@ use super::{
     },
     thread::{
         arch_tcb_t, ksCurDomain, ksCurThread, ksIdleThread, ksSchedulerAction, setNextPC,
-        setPriority, setRegister, setThreadState, sp, tcbSchedEnqueue, tcb_t, Arch_initContext,
+        setRegister, setThreadState, sp, tcbSchedEnqueue, tcb_t, Arch_initContext,
         ThreadStateIdleThreadState, ThreadStateRunning,
     },
     vspace::{
-        activate_kernel_vspace, arch_get_n_paging, create_it_address_space, map_it_frame_cap,
-        map_kernel_window, paddr_to_pptr, pptr_to_paddr, VMReadWrite,
+        activate_kernel_vspace, arch_get_n_paging, map_it_frame_cap, map_kernel_window,
+        paddr_to_pptr, pptr_to_paddr, VMReadWrite,
     },
 };
 
@@ -365,8 +359,7 @@ pub fn create_root_cnode() -> *const cap_t {
             rootserver.cnode,
         );
         write_slot(
-            (rootserver.cnode + (mem::size_of::<cte_t>() * seL4_CapInitThreadCNode))
-                as *const cte_t,
+            (rootserver.cnode + (size_of::<cte_t>() * seL4_CapInitThreadCNode)) as *const cte_t,
             cap,
         );
         cap
@@ -383,7 +376,7 @@ pub fn clearMemory(ptr: *mut u8, bits: usize) {
 pub fn create_domain_cap(root_cnode_cap: *const cap_t) {
     let cap = cap_domain_cap_new();
     write_slot(
-        (cap_get_capPtr(root_cnode_cap) + seL4_CapDomain * mem::size_of::<cte_t>()) as *const cte_t,
+        (cap_get_capPtr(root_cnode_cap) + seL4_CapDomain * size_of::<cte_t>()) as *const cte_t,
         cap,
     );
 }
@@ -406,7 +399,7 @@ pub fn provide_cap(root_cnode_cap: *const cap_t, cap: *const cap_t) -> bool {
             return false;
         }
         write_slot(
-            (cap_get_capPtr(root_cnode_cap) + mem::size_of::<cte_t>() * ndks_boot.slot_pos_cur)
+            (cap_get_capPtr(root_cnode_cap) + size_of::<cte_t>() * ndks_boot.slot_pos_cur)
                 as *const cte_t,
             cap,
         );
@@ -421,7 +414,7 @@ pub fn create_mapped_it_frame_cap(
     vptr: usize,
     asid: usize,
     use_large: bool,
-    executable: bool,
+    _exec: bool,
 ) -> *const cap_t {
     let frame_size: usize;
     if use_large {
@@ -443,7 +436,7 @@ pub fn create_initial_ipcbuf_frame_cap(
         clearMemory(rootserver.ipc_buf as *mut u8, PAGE_BITS);
         let cap = create_mapped_it_frame_cap(pd_cap, rootserver.ipc_buf, vptr, 1, false, false);
         write_slot(
-            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * size_of::<cte_t>())
                 as *const cte_t,
             cap,
         );
@@ -460,7 +453,7 @@ pub fn create_ipcbuf_frame_cap(
     clearMemory(ipc_buf as *mut u8, PAGE_BITS);
     let cap = create_mapped_it_frame_cap(pd_cap, ipc_buf, vptr, 0, false, false);
     write_slot(
-        (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+        (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * size_of::<cte_t>())
             as *const cte_t,
         cap,
     );
@@ -469,11 +462,11 @@ pub fn create_ipcbuf_frame_cap(
 
 pub fn create_idle_thread() {
     unsafe {
-        let state_size = mem::size_of::<thread_state_t>();
+        let state_size = size_of::<thread_state_t>();
         let state_layout = Layout::from_size_align(state_size, 4).ok().unwrap();
         let state = alloc::alloc::alloc(state_layout) as *const thread_state_t;
         thread_state_set_tsType(state as *mut thread_state_t, ThreadStateIdleThreadState);
-        let tcb_size = mem::size_of::<tcb_t>();
+        let tcb_size = size_of::<tcb_t>();
         let tcb_layout = Layout::from_size_align(tcb_size, 4).ok().unwrap();
         let tcb_ptr = alloc::alloc::alloc(tcb_layout) as *mut tcb_t;
         println!("[kernel] create idle thread on :{}", tcb_ptr as usize);
@@ -511,8 +504,8 @@ pub fn create_initial_thread(
     name: String,
 ) -> *const tcb_t {
     let tcb = thread as *mut tcb_t;
-    let cte_total_size = mem::size_of::<cte_t>() * tcbCNodeEntries;
-    let cte_size = mem::size_of::<cte_t>();
+    let cte_total_size = size_of::<cte_t>() * tcbCNodeEntries;
+    let cte_size = size_of::<cte_t>();
     let cte_layout = Layout::from_size_align(cte_total_size, 4).ok().unwrap();
     let cte_ptr: *mut u8;
     unsafe {
@@ -534,40 +527,40 @@ pub fn create_initial_thread(
         Arch_initContext((&(*tcb).tcbArch) as *const arch_tcb_t as *mut arch_tcb_t);
     }
     let dc_ret = deriveCap(
-        (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+        (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * size_of::<cte_t>())
             as *const cte_t,
         ipcbuf_cap,
     );
     unsafe {
         cteInsert(
             root_cnode_cap,
-            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadCNode * mem::size_of::<cte_t>())
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadCNode * size_of::<cte_t>())
                 as *const cte_t,
             (*(thread as *const tcb_t)).rootCap[tcbCTable],
         );
         cteInsert(
             it_pd_cap,
-            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadVspace * mem::size_of::<cte_t>())
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadVspace * size_of::<cte_t>())
                 as *const cte_t,
             (*(thread as *const tcb_t)).rootCap[tcbVTable],
         );
         cteInsert(
             dc_ret.cap,
-            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * mem::size_of::<cte_t>())
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * size_of::<cte_t>())
                 as *const cte_t,
             (*(thread as *const tcb_t)).rootCap[tcbBuffer],
         );
-        // let ep_size = mem::size_of::<endpoint_t>();
+        // let ep_size = size_of::<endpoint_t>();
         // let ep_layout = Layout::from_size_align(ep_size, 4).ok().unwrap();
         // let ep_ptr: *mut u8;
         // ep_ptr = alloc::alloc::alloc(ep_layout);
         // let ep_cap = cap_endpoint_cap_new(0, 0, 0, 1, 1, ep_ptr as usize);
         // cteInsert(
         //     ep_cap,
-        //     (cap_get_capPtr(root_cnode_cap) + 12 * mem::size_of::<cte_t>()) as *const cte_t,
-        //     (cap_get_capPtr(root_cnode_cap) + 13 * mem::size_of::<cte_t>()) as *const cte_t,
+        //     (cap_get_capPtr(root_cnode_cap) + 12 * size_of::<cte_t>()) as *const cte_t,
+        //     (cap_get_capPtr(root_cnode_cap) + 13 * size_of::<cte_t>()) as *const cte_t,
         // );
-        // println!("insert ep cap at:{:#x}",cap_get_capPtr(root_cnode_cap) + 13 * mem::size_of::<cte_t>());
+        // println!("insert ep cap at:{:#x}",cap_get_capPtr(root_cnode_cap) + 13 * size_of::<cte_t>());
     }
     unsafe {
         (*tcb).tcbIPCBuffer = ipcbuf_vptr;
@@ -579,7 +572,7 @@ pub fn create_initial_thread(
         ksCurDomain = 0;
         let cap = cap_thread_cap_new(tcb as usize);
         write_slot(
-            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadTCB * mem::size_of::<cte_t>())
+            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadTCB * size_of::<cte_t>())
                 as *const cte_t,
             cap,
         );
@@ -626,7 +619,7 @@ pub fn create_thread(
     prio: usize,
 ) -> *const tcb_t {
     println!("[kernel] create thread for app :{}", app_id);
-    let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS) * mem::size_of::<cte_t>();
+    let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS) * size_of::<cte_t>();
     let layout = Layout::from_size_align(size, 4).ok().unwrap();
     let ptr: *mut u8;
     unsafe {
@@ -644,7 +637,7 @@ pub fn create_thread(
         ptr as usize,
     );
     write_slot(
-        (ptr as usize + (mem::size_of::<cte_t>() * seL4_CapInitThreadCNode)) as *const cte_t,
+        (ptr as usize + (size_of::<cte_t>() * seL4_CapInitThreadCNode)) as *const cte_t,
         cap,
     );
     let n = arch_get_n_paging(it_v_reg);
@@ -676,7 +669,7 @@ pub fn create_thread(
     );
     let ipc_buf = get_app_phys_addr(app_id).end - PAGE_SIZE;
     let ipcbuf_cap = create_ipcbuf_frame_cap(cap, it_pd_cap, ipcbuf_vptr, ipc_buf);
-    let thread_size = mem::size_of::<tcb_t>();
+    let thread_size = size_of::<tcb_t>();
     let thread_layout = Layout::from_size_align(thread_size, 4).ok().unwrap();
     let thread_ptr: usize;
     unsafe {
@@ -723,7 +716,6 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
     let mut start_va: usize = usize::MAX;
     let mut end_va: usize = 0;
     let mut offset = 0;
-    println!("in here");
     for i in 0..ph_count {
         let ph = elf.program_header(i).unwrap();
         let data = if let SegmentData::Undefined(data) = ph.get_data(&elf).unwrap() {
@@ -747,7 +739,6 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
             };
         }
     }
-    println!("in here");
     let it_v_reg = v_region_t {
         start: start_va,
         end: end_va + PAGE_SIZE + USER_STACK_SIZE + PAGE_SIZE,

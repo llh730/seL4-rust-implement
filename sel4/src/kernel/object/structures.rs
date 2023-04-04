@@ -1,12 +1,11 @@
 extern crate alloc;
 use core::alloc::Layout;
 //CSpace relevant
-use core::cell::RefCell;
 use core::default::Default;
 use core::intrinsics::{likely, unlikely};
 use core::mem::size_of;
 
-use crate::{println, MASK};
+use crate::MASK;
 
 use super::objecttype::*;
 
@@ -1674,7 +1673,10 @@ pub fn cap_thread_cap_new(capTCBPtr: usize) -> *const cap_t {
 }
 
 #[inline]
-pub fn cap_thread_cap_get_capTCBPtr(cap: cap_t) -> usize {
-    let ret = (cap.words[0] & 0x7fffffffffusize) << 0;
-    return ret;
+pub fn cap_thread_cap_get_capTCBPtr(cap: *const cap_t) -> usize {
+    let ret: usize;
+    unsafe {
+        ret = ((*cap).words[0] & 0x7fffffffffusize) << 0;
+    }
+    ret
 }

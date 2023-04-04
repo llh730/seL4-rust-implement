@@ -1,8 +1,20 @@
-use crate::{config::seL4_SlotBits, kernel::object::structures::*, MASK};
-extern crate alloc;
-use core::cell::RefCell;
+use core::{alloc::Layout, mem::size_of};
 
-use super::cap::ensureNoChildren;
+use crate::{
+    config::{seL4_SlotBits, tcbCNodeEntries, seL4_TCBBits, PAGE_BITS, RISCVPageBits, RISCVMegaPageBits},
+    kernel::{
+        object::structures::*,
+        thread::{arch_tcb_t, tcb_t, Arch_initContext},
+        vspace::{
+            deleteASID, findVSpaceForASID, pageBitsForSize, unmapPage, unmapPageTable,
+            RISCV_4K_Page, RISCV_Mega_Page, VMReadWrite,
+        },
+    },
+    MASK,
+};
+extern crate alloc;
+
+use super::{cap::ensureNoChildren, endpoint::cancelAllIPC};
 
 //bits
 
@@ -28,10 +40,34 @@ pub const cap_page_table_cap: usize = 3;
 pub const cap_asid_control_cap: usize = 11;
 pub const cap_asid_pool_cap: usize = 13;
 
+pub const seL4_UntypedObject: usize = 1;
+pub const seL4_TCBObject: usize = 2;
+pub const seL4_EndpointObject: usize = 3;
+pub const seL4_CapTableObject: usize = 5;
+pub const seL4_RISCV_4K_Page: usize = 6;
+pub const seL4_RISCV_Mega_Page: usize = 7;
+pub const seL4_RISCV_PageTableObject: usize = 8;
+const asidInvalid: usize = 0;
+
 pub struct deriveCap_ret {
     pub status: exception_t,
     pub cap: *const cap_t,
 }
+
+//FIXME:this size may not be corrected
+pub fn getObjectSize(t:usize,userObjSize:usize)->usize{
+    match t{
+        seL4_TCBObject=>seL4_TCBBits,
+        seL4_EndpointObject=>seL4_EndpointBits,
+        seL4_CapTableObject=>seL4_SlotBits+userObjSize,
+        seL4_UntypedObject=>userObjSize,
+        seL4_RISCV_4K_Page | seL4_RISCV_PageTableObject=>RISCVPageBits,
+        seL4_RISCV_Mega_Page=>RISCVMegaPageBits,
+        _=>panic!("invalid object type:{}",t),
+    }
+}
+
+
 
 pub fn isCapRevocable(_derivedCap: *const cap_t, _srcCap: *const cap_t) -> bool {
     if isArchCap(_derivedCap) {
@@ -87,20 +123,28 @@ pub fn sameRegionAs(cap1: *const cap_t, cap2: *const cap_t) -> bool {
 
             return false;
         }
+        cap_frame_cap => {
+            let botA = cap_frame_cap_get_capFBasePtr(cap1);
+            let botB = cap_frame_cap_get_capFBasePtr(cap2);
+            let topA =
+                botA + ((1usize << (pageBitsForSize(cap_frame_cap_get_capFSize(cap1)))) - 1usize);
+            let topB =
+                botB + ((1usize << (pageBitsForSize(cap_frame_cap_get_capFSize(cap2)))) - 1usize);
+            (botA <= botB) && (topA >= topB) && (botB <= topB)
+        }
         cap_endpoint_cap => {
-            if cap_get_capType(cap2) == cap_endpoint_cap {
-                return cap_endpoint_cap_get_capEPPtr(cap1) == cap_endpoint_cap_get_capEPPtr(cap2);
-            }
-            return false;
+            cap_endpoint_cap_get_capEPPtr(cap1) == cap_endpoint_cap_get_capEPPtr(cap2)
+        }
+        cap_page_table_cap => {
+            cap_page_table_cap_get_capPTBasePtr(cap1) == cap_page_table_cap_get_capPTBasePtr(cap2)
         }
         cap_cnode_cap => {
-            if cap_get_capType(cap2) == cap_cnode_cap {
-                return (cap_cnode_cap_get_capCNodePtr(cap1)
-                    == cap_cnode_cap_get_capCNodePtr(cap2))
-                    && (cap_cnode_cap_get_capCNodeRadix(cap1)
-                        == cap_cnode_cap_get_capCNodeRadix(cap2));
-            }
-            return false;
+            (cap_cnode_cap_get_capCNodePtr(cap1) == cap_cnode_cap_get_capCNodePtr(cap2))
+                && (cap_cnode_cap_get_capCNodeRadix(cap1) == cap_cnode_cap_get_capCNodeRadix(cap2))
+        }
+        cap_thread_cap => {
+            cap_thread_cap_get_capTCBPtr(cap1 as *mut cap_t)
+                == cap_thread_cap_get_capTCBPtr(cap2 as *mut cap_t)
         }
         _ => {
             return false;
@@ -108,7 +152,81 @@ pub fn sameRegionAs(cap1: *const cap_t, cap2: *const cap_t) -> bool {
     }
 }
 
+pub fn createObject(
+    objectType: usize,
+    regionBase: *mut u8,
+    userSize: usize,
+    deviceMemory: bool,
+) -> *const cap_t {
+    match objectType {
+        seL4_TCBObject => {
+            let tcb = regionBase as *mut tcb_t;
+            let cte_total_size = size_of::<cte_t>() * tcbCNodeEntries;
+            let cte_size = size_of::<cte_t>();
+            let cte_layout = Layout::from_size_align(cte_total_size, 4).ok().unwrap();
+            let cte_ptr: *mut u8;
+            unsafe {
+                cte_ptr = alloc::alloc::alloc(cte_layout);
+            }
+
+            let mut rootCaps: [*const cte_t; tcbCNodeEntries] =
+                [0 as *const cte_t; tcbCNodeEntries];
+            for i in 0..tcbCNodeEntries {
+                let ptr = (cte_ptr as usize + i * cte_size) as *mut cte_t;
+                unsafe {
+                    (*ptr).cap = cap_null_cap_new() as *mut cap_t;
+                    (*ptr).cteMDBNode = mdb_node_new(0, 0, 0, 0) as *mut mdb_node_t;
+                }
+                rootCaps[i] = (cte_ptr as usize + i * cte_size) as *mut cte_t;
+            }
+            unsafe {
+                (*tcb).rootCap = rootCaps;
+                (*tcb).tcbState = thread_state_new();
+                Arch_initContext((&(*tcb).tcbArch) as *const arch_tcb_t as *mut arch_tcb_t);
+                return cap_thread_cap_new(tcb as usize);
+            }
+        }
+        seL4_EndpointObject => cap_endpoint_cap_new(0, 1, 1, 1, 1, regionBase as usize),
+        seL4_CapTableObject => cap_cnode_cap_new(userSize, 0, 0, regionBase as usize),
+        seL4_UntypedObject => {
+            cap_untyped_cap_new(0, deviceMemory as usize, userSize, regionBase as usize)
+        }
+        seL4_RISCV_4K_Page => cap_frame_cap_new(
+            asidInvalid,
+            regionBase as usize,
+            RISCV_4K_Page,
+            VMReadWrite,
+            deviceMemory as usize,
+            0,
+        ),
+        seL4_RISCV_Mega_Page => cap_frame_cap_new(
+            asidInvalid,
+            regionBase as usize,
+            RISCV_Mega_Page,
+            VMReadWrite,
+            deviceMemory as usize,
+            0,
+        ),
+        seL4_RISCV_PageTableObject => {
+            cap_page_table_cap_new(asidInvalid, regionBase as usize, 0, 0)
+        }
+        _ => panic! {"Invalid object type:{}",objectType},
+    }
+}
+
+pub fn createNewObject(objectType:usize,parent:*const cte_t,destCnode:*const cte_t,destOffset:usize,destLength:usize,regionBase: *mut u8,userSize:usize,deviceMemory: bool){
+    let objectSize=getObjectSize(objectType, userSize);
+
+}
+
+
 pub fn Arch_sameObjectAs(cap_a: *const cap_t, cap_b: *const cap_t) -> bool {
+    if (cap_get_capType(cap_a) == cap_frame_cap) && (cap_get_capType(cap_b) == cap_frame_cap) {
+        return (cap_frame_cap_get_capFBasePtr(cap_a) == cap_frame_cap_get_capFBasePtr(cap_b))
+            && (cap_frame_cap_get_capFSize(cap_a) == cap_frame_cap_get_capFSize(cap_b))
+            && ((cap_frame_cap_get_capFIsDevice(cap_a) == 0)
+                == (cap_frame_cap_get_capFIsDevice(cap_b) == 0));
+    }
     return false;
 }
 pub fn sameObjectAs(cap_a: *const cap_t, cap_b: *const cap_t) -> bool {
@@ -139,12 +257,38 @@ fn cap_get_capIsPhyaical(cap: *const cap_t) -> bool {
 
 pub fn Arch_finaliseCap(cap: *const cap_t, _final: bool) -> finaliseCap_ret {
     let mut fc_ret = finaliseCap_ret::default();
+    match cap_get_capType(cap) {
+        cap_frame_cap => {
+            if cap_frame_cap_get_capFMappedASID(cap) != 0 {
+                unmapPage(
+                    cap_frame_cap_get_capFSize(cap),
+                    cap_frame_cap_get_capFMappedASID(cap),
+                    cap_frame_cap_get_capFMappedAddress(cap),
+                    cap_frame_cap_get_capFBasePtr(cap),
+                );
+            }
+        }
+        cap_page_table_cap => {
+            if _final && cap_page_table_cap_get_capPTIsMapped(cap) != 0 {
+                let asid = cap_page_table_cap_get_capPTMappedASID(cap);
+                let find_ret = findVSpaceForASID(asid);
+                let pte = cap_page_table_cap_get_capPTBasePtr(cap);
+                if find_ret.status == exception_t::EXCEPTION_NONE && find_ret.vspace_root == pte {
+                    deleteASID(asid, pte);
+                } else {
+                    unmapPageTable(asid, cap_page_table_cap_get_capPTMappedAddress(cap), pte);
+                }
+            }
+        }
+        cap_asid_control_cap => {}
+        _ => panic!("Invalid cap type :{}", cap_get_capType(cap)),
+    }
     fc_ret.remainder = cap_null_cap_new();
     fc_ret.cleanupInfo = cap_null_cap_new();
     fc_ret
 }
 
-pub fn finaliseCap(cap: *const cap_t, _final: bool, exposed: bool) -> finaliseCap_ret {
+pub fn finaliseCap(cap: *const cap_t, _final: bool, _exposed: bool) -> finaliseCap_ret {
     let mut fc_ret = finaliseCap_ret::default();
 
     if isArchCap(cap) {
@@ -154,7 +298,8 @@ pub fn finaliseCap(cap: *const cap_t, _final: bool, exposed: bool) -> finaliseCa
     match cap_get_capType(cap) {
         cap_endpoint_cap => {
             if _final {
-                //TODO: cancelALLIPC()
+                // TODO: cancelALLIPC()
+                cancelAllIPC(cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t);
             }
             fc_ret.remainder = cap_null_cap_new();
             fc_ret.cleanupInfo = cap_null_cap_new();
@@ -176,6 +321,13 @@ pub fn finaliseCap(cap: *const cap_t, _final: bool, exposed: bool) -> finaliseCa
                 return fc_ret;
             }
         }
+        //FIXME::cap_thread_cap condition not included
+        // cap_thread_cap => {
+        //     if _final {
+        //         let tcb = cap_thread_cap_get_capTCBPtr(cap) as *const tcb_t;
+        //         // let cte_ptr =
+        //     }
+        // }
         _ => {
             fc_ret.remainder = cap_null_cap_new();
             fc_ret.cleanupInfo = cap_null_cap_new();
@@ -184,7 +336,19 @@ pub fn finaliseCap(cap: *const cap_t, _final: bool, exposed: bool) -> finaliseCa
     }
 }
 
-pub fn Arch_deriveCap(slot: *const cte_t, cap: *const cap_t) -> deriveCap_ret {
+pub fn hasCancelSendRight(cap: *const cap_t) -> bool {
+    match cap_get_capType(cap) {
+        cap_endpoint_cap => {
+            cap_endpoint_cap_get_capCanSend(cap) != 0
+                && cap_endpoint_cap_get_capCanReceive(cap) != 0
+                && cap_endpoint_cap_get_capCanGrantReply(cap) != 0
+                && cap_endpoint_cap_get_capCanGrant(cap) != 0
+        }
+        _ => false,
+    }
+}
+
+pub fn Arch_deriveCap(_slot: *const cte_t, cap: *const cap_t) -> deriveCap_ret {
     let mut ret = deriveCap_ret {
         status: exception_t::EXCEPTION_NONE,
         cap: 0 as *const cap_t,

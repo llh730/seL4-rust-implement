@@ -1,3 +1,4 @@
+use core::arch::asm;
 use core::mem;
 use riscv::register::satp;
 
@@ -7,7 +8,7 @@ use super::boot::{
     get_n_paging, it_alloc_paging, p_region_t, provide_cap, rootserver, v_region_t, write_slot,
 };
 use super::object::structures::{
-    cap_capType_equals, cap_frame_cap_get_capFBasePtr, cap_frame_cap_get_capFIsDevice,
+    cap_frame_cap_get_capFBasePtr, cap_frame_cap_get_capFIsDevice,
     cap_frame_cap_get_capFMappedAddress, cap_frame_cap_get_capFSize,
     cap_frame_cap_get_capFVMRights, cap_frame_cap_new, cap_get_capType, cap_null_cap_new,
     cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTMappedASID,
@@ -16,7 +17,7 @@ use super::object::structures::{
 };
 
 use super::object::objecttype::*;
-use super::thread::tcb_t;
+use super::thread::{ksCurThread, tcb_t};
 
 type pptr_t = usize;
 type paddr_t = usize;
@@ -59,6 +60,13 @@ pub struct lookupPTSlot_ret_t {
     pub ptBitsLeft: usize,
 }
 
+pub fn hwASIDFlush(asid: asid_t) {
+    unsafe {
+        asm!("sfence.vma x0, {0}",in(reg) asid);
+    }
+}
+
+#[derive(Copy, Clone)]
 pub struct asid_pool_t {
     array: [pte_t; BIT!(asidLowBits)],
 }
@@ -73,7 +81,8 @@ static mut kernel_root_pageTable: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_IND
 #[link_section = ".page_table"]
 static mut kernel_image_level2_pt: [pte_t; BIT!(PT_INDEX_BITS)] = [0; BIT!(PT_INDEX_BITS)];
 
-static mut riscvKSASIDTable: [usize; BIT!(asidHighBits)] = [0; BIT!(asidHighBits)];
+static mut riscvKSASIDTable: [*mut asid_pool_t; BIT!(asidHighBits)] =
+    [0 as *mut asid_pool_t; BIT!(asidHighBits)];
 
 #[inline]
 pub fn satp_new(mode: usize, asid: usize, ppn: usize) -> satp_t {
@@ -293,10 +302,6 @@ pub fn map_it_frame_cap(_vspace_cap: *const cap_t, _frame_cap: *const cap_t) {
             1, /* valid */
         );
         sfence();
-        // println!(
-        //     "frame cap targetSlot:{:#x} *targetSlot:{:#x}",
-        //     targetSlot as usize, *targetSlot
-        // );
     }
 }
 
@@ -366,11 +371,13 @@ pub fn create_it_pt_cap(
     return cap;
 }
 
-pub fn create_it_frame_cap(vspace_cap: *const cap_t,
+pub fn create_it_frame_cap(
+    vspace_cap: *const cap_t,
     pptr: pptr_t,
     vptr: vptr_t,
-    asid: usize)->*const cap_t{
-    let cap=cap_frame_cap_new(asid,pptr,12,VMReadWrite,0,vptr);
+    asid: usize,
+) -> *const cap_t {
+    let cap = cap_frame_cap_new(asid, pptr, 12, VMReadWrite, 0, vptr);
     map_it_frame_cap(vspace_cap, cap);
     cap
 }
@@ -386,16 +393,12 @@ pub fn copyGlobalMappings(Lvl1pt: usize) {
     }
 }
 
-// pub fn unmapPageTable(asid:usize,vptr:vptr_t,target_pt:pte_t){
-
-// }
-
 pub fn write_it_asid_pool(it_ap_cap: *const cap_t, it_lvl1pt_cap: *const cap_t) {
     let ap = cap_get_capPtr(it_ap_cap);
     unsafe {
         let ptr = (ap + 8 * IT_ASID) as *mut usize;
         *ptr = cap_get_capPtr(it_lvl1pt_cap);
-        riscvKSASIDTable[IT_ASID >> asidLowBits] = ap;
+        riscvKSASIDTable[IT_ASID >> asidLowBits] = ap as *mut asid_pool_t;
     }
 }
 
@@ -407,7 +410,7 @@ pub fn findVSpaceForASID(asid: asid_t) -> findVSpaceForASID_ret {
     let mut vspace_root: usize = 0;
     let mut poolPtr: usize = 0;
     unsafe {
-        poolPtr = riscvKSASIDTable[asid >> asidLowBits];
+        poolPtr = riscvKSASIDTable[asid >> asidLowBits] as usize;
     }
     if poolPtr == 0 {
         return ret;
@@ -512,12 +515,16 @@ pub fn arch_get_n_paging(it_v_reg: v_region_t) -> usize {
     return n;
 }
 
-// pub fn deleteASID(asid:asid_t,vspace:pte_t){
-//     unsafe{
-//         let poolPtr = riscvKSASIDTable[asid>>asidLowBits];
-//         if poolPtr!=0 &&
-//     }
-// }
+pub fn deleteASID(asid: asid_t, vspace: pte_t) {
+    unsafe {
+        let poolPtr = riscvKSASIDTable[asid >> asidLowBits];
+        if poolPtr as usize != 0 && (*poolPtr).array[asid & MASK!(asidLowBits)] == vspace {
+            hwASIDFlush(asid);
+            (*poolPtr).array[asid & MASK!(asidLowBits)] = 0;
+            setVMRoot(ksCurThread as *mut tcb_t);
+        }
+    }
+}
 
 pub fn create_it_address_space(
     root_cnode_cap: *const cap_t,
@@ -548,7 +555,6 @@ pub fn create_it_address_space(
         lvl1pt_cap
     }
 }
-
 
 pub fn create_address_space_alloced(
     cnode: usize,
@@ -619,7 +625,6 @@ pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> usize {
         0
     }
 }
-
 
 // 0x8021c000
 // 0x8021d000

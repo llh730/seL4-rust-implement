@@ -25,13 +25,9 @@ mod elfloader;
 mod heap_alloc;
 mod kernel;
 mod lang_items;
-mod loader;
 mod sbi;
-mod sync;
 mod syscall;
-mod tasks;
 mod timer;
-mod trap;
 mod traps;
 mod utils;
 
@@ -46,9 +42,6 @@ pub fn rust_main() {
     timer::set_next_trigger();
     schedule();
     activateThread();
-    // unsafe {
-    //     setVMRoot(ksCurThread as *mut tcb_t);
-    // }
     restore_user_context();
     shutdown();
 }

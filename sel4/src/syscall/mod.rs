@@ -12,7 +12,6 @@ mod process;
 use fs::*;
 use process::*;
 
-use crate::println;
 
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
     // record_syscall_times(syscall_id);

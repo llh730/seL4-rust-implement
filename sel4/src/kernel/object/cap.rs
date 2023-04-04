@@ -1,13 +1,7 @@
-use core::cell::RefCell;
 extern crate alloc;
 use core::mem::size_of;
 
-use crate::{
-    kernel::{
-        object::{cspace::*, objecttype::*, structures::*},
-        thread::tcb_t,
-    },
-};
+use crate::kernel::object::{objecttype::*, structures::*};
 
 use super::endpoint::cancelBadgedSends;
 
@@ -68,21 +62,13 @@ pub fn cteMove(_newCap: *const cap_t, __srcSlot: *const cte_t, __destSlot: *cons
         (*_srcSlot).cap = cap_null_cap_new() as *mut cap_t;
         (*_destSlot).cteMDBNode = mdb;
         (*_srcSlot).cteMDBNode = mdb_node_new(0, 0, 0, 0) as *mut mdb_node_t;
-        unsafe {
-            let prev_ptr = mdb_node_get_mdbPrev(mdb);
-            if prev_ptr != 0 {
-                mdb_node_ptr_set_mdbNext(
-                    (*(prev_ptr as *const cte_t)).cteMDBNode,
-                    _destSlot as usize,
-                );
-            }
-            let next_ptr = mdb_node_get_mdbNext(mdb);
-            if next_ptr != 0 {
-                mdb_node_ptr_set_mdbPrev(
-                    (*(next_ptr as *const cte_t)).cteMDBNode,
-                    _destSlot as usize,
-                );
-            }
+        let prev_ptr = mdb_node_get_mdbPrev(mdb);
+        if prev_ptr != 0 {
+            mdb_node_ptr_set_mdbNext((*(prev_ptr as *const cte_t)).cteMDBNode, _destSlot as usize);
+        }
+        let next_ptr = mdb_node_get_mdbNext(mdb);
+        if next_ptr != 0 {
+            mdb_node_ptr_set_mdbPrev((*(next_ptr as *const cte_t)).cteMDBNode, _destSlot as usize);
         }
     }
 }
@@ -115,27 +101,23 @@ pub fn cteSwap(cap1: *const cap_t, _slot1: *const cte_t, cap2: *const cap_t, _sl
         let mdb2 = (*slot2).cteMDBNode;
         *((*slot1).cap) = *cap2;
         *((*slot2).cap) = *cap1;
-        unsafe {
-            let prev_ptr = mdb_node_get_mdbPrev(mdb1);
-            if prev_ptr != 0 {
-                mdb_node_ptr_set_mdbNext((*(prev_ptr as *const cte_t)).cteMDBNode, _slot2 as usize);
-            }
-            let next_ptr = mdb_node_get_mdbNext(mdb1);
-            if next_ptr != 0 {
-                mdb_node_ptr_set_mdbPrev((*(next_ptr as *const cte_t)).cteMDBNode, _slot2 as usize);
-            }
+        let prev_ptr = mdb_node_get_mdbPrev(mdb1);
+        if prev_ptr != 0 {
+            mdb_node_ptr_set_mdbNext((*(prev_ptr as *const cte_t)).cteMDBNode, _slot2 as usize);
+        }
+        let next_ptr = mdb_node_get_mdbNext(mdb1);
+        if next_ptr != 0 {
+            mdb_node_ptr_set_mdbPrev((*(next_ptr as *const cte_t)).cteMDBNode, _slot2 as usize);
         }
         (*slot1).cteMDBNode = mdb2;
         (*slot2).cteMDBNode = mdb1;
-        unsafe {
-            let prev_ptr = mdb_node_get_mdbPrev(mdb2);
-            if prev_ptr != 0 {
-                mdb_node_ptr_set_mdbNext((*(prev_ptr as *const cte_t)).cteMDBNode, _slot1 as usize);
-            }
-            let next_ptr = mdb_node_get_mdbNext(mdb2);
-            if next_ptr != 0 {
-                mdb_node_ptr_set_mdbPrev((*(next_ptr as *const cte_t)).cteMDBNode, _slot1 as usize);
-            }
+        let prev_ptr = mdb_node_get_mdbPrev(mdb2);
+        if prev_ptr != 0 {
+            mdb_node_ptr_set_mdbNext((*(prev_ptr as *const cte_t)).cteMDBNode, _slot1 as usize);
+        }
+        let next_ptr = mdb_node_get_mdbNext(mdb2);
+        if next_ptr != 0 {
+            mdb_node_ptr_set_mdbPrev((*(next_ptr as *const cte_t)).cteMDBNode, _slot1 as usize);
         }
     }
 }
@@ -199,11 +181,9 @@ fn isMDBParentOf(cte1: *const cte_t, cte2: *const cte_t) -> bool {
 pub fn ensureNoChildren(slot: *const cte_t) -> exception_t {
     unsafe {
         if mdb_node_get_mdbNext((*slot).cteMDBNode) != 0 {
-            unsafe {
-                let next = mdb_node_get_mdbNext((*slot).cteMDBNode) as *const cte_t;
-                if isMDBParentOf(slot, next) {
-                    return exception_t::EXCEPTION_SYSCALL_ERROR;
-                }
+            let next = mdb_node_get_mdbNext((*slot).cteMDBNode) as *const cte_t;
+            if isMDBParentOf(slot, next) {
+                return exception_t::EXCEPTION_SYSCALL_ERROR;
             }
         }
         return exception_t::EXCEPTION_NONE;
@@ -214,22 +194,19 @@ pub fn emptySlot(_slot: *const cte_t, _cleanupInfo: *const cap_t) {
     unsafe {
         let slot = _slot as *mut cte_t;
         if cap_get_capType((*slot).cap) != cap_null_cap {
-            unsafe {
-                let mdbNode = (*slot).cteMDBNode;
-                let prev = mdb_node_get_mdbPrev(mdbNode);
-                let next = mdb_node_get_mdbNext(mdbNode);
-                if prev != 0 {
-                    let prev_ptr = mdb_node_get_mdbPrev(mdbNode) as *const cte_t;
-                    mdb_node_ptr_set_mdbNext((*(prev_ptr as *const cte_t)).cteMDBNode, next);
-                }
-                if next != 0 {
-                    let next_ptr = mdb_node_get_mdbNext(mdbNode) as *const cte_t;
-                    mdb_node_ptr_set_mdbPrev((*(next_ptr as *const cte_t)).cteMDBNode, prev);
-                }
-                (*slot).cap = cap_null_cap_new() as *mut cap_t;
-                (*slot).cteMDBNode =
-                    &(mdb_node_t::default()) as *const mdb_node_t as *mut mdb_node_t;
+            let mdbNode = (*slot).cteMDBNode;
+            let prev = mdb_node_get_mdbPrev(mdbNode);
+            let next = mdb_node_get_mdbNext(mdbNode);
+            if prev != 0 {
+                let prev_ptr = mdb_node_get_mdbPrev(mdbNode) as *const cte_t;
+                mdb_node_ptr_set_mdbNext((*(prev_ptr as *const cte_t)).cteMDBNode, next);
             }
+            if next != 0 {
+                let next_ptr = mdb_node_get_mdbNext(mdbNode) as *const cte_t;
+                mdb_node_ptr_set_mdbPrev((*(next_ptr as *const cte_t)).cteMDBNode, prev);
+            }
+            (*slot).cap = cap_null_cap_new() as *mut cap_t;
+            (*slot).cteMDBNode = &(mdb_node_t::default()) as *const mdb_node_t as *mut mdb_node_t;
         }
     }
 }
@@ -250,10 +227,8 @@ pub fn isFinalcapability(cte: *const cte_t) -> bool {
         if mdb_node_get_mdbPrev(mdb) == 0 {
             prevIsSameObject = false;
         } else {
-            unsafe {
-                let prev = mdb_node_get_mdbPrev(mdb) as *const cte_t;
-                prevIsSameObject = sameObjectAs((*prev).cap, (*cte).cap);
-            }
+            let prev = mdb_node_get_mdbPrev(mdb) as *const cte_t;
+            prevIsSameObject = sameObjectAs((*prev).cap, (*cte).cap);
         }
         if prevIsSameObject {
             false
@@ -261,10 +236,8 @@ pub fn isFinalcapability(cte: *const cte_t) -> bool {
             if mdb_node_get_mdbNext(mdb) != 0 {
                 true
             } else {
-                unsafe {
-                    let next = mdb_node_get_mdbPrev(mdb) as *const cte_t;
-                    return !sameObjectAs((*cte).cap, (*next).cap);
-                }
+                let next = mdb_node_get_mdbPrev(mdb) as *const cte_t;
+                return !sameObjectAs((*cte).cap, (*next).cap);
             }
         }
     }
@@ -279,10 +252,8 @@ fn capRemovable(cap: *const cap_t, slot: *const cte_t) -> bool {
         cap_zombie_cap => {
             let n = cap_zombie_cap_get_capZombieNumber(cap);
             let ptr = cap_zombie_cap_get_capZombiePtr(cap);
-            unsafe {
-                let z_slot = ptr as *const cte_t;
-                return n == 0 || (n == 1 && slot == z_slot);
-            }
+            let z_slot = ptr as *const cte_t;
+            return n == 0 || (n == 1 && slot == z_slot);
         }
         _ => {
             panic!("Invalid cap type , finaliseCap should only return Zombie or NullCap");
@@ -449,7 +420,7 @@ pub fn invokeCNodeCancelBadgedSends(cap: *const cap_t) -> exception_t {
     let badge = cap_endpoint_cap_get_capEPBadge(cap);
     if badge != 0 {
         let ep = cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t;
-        //TODO::cancelBadgeSend();
+        cancelBadgedSends(ep as *mut endpoint_t, badge);
     }
     return exception_t::EXCEPTION_NONE;
 }
