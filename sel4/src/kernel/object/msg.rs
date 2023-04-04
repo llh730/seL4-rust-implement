@@ -83,3 +83,35 @@ pub fn seL4_MessageInfo_new(
 
     seL4_MessageInfo
 }
+
+//vm_attributes
+pub struct vm_attributes_t {
+    words: [usize; 1],
+}
+
+#[inline]
+pub fn vm_attributes_new(value: usize) -> vm_attributes_t {
+    vm_attributes_t {
+        words: [value & 0x1usize],
+    }
+}
+
+#[inline]
+pub fn vmAttributesFromWord(w: usize) -> vm_attributes_t {
+    let attr = vm_attributes_t { words: [w] };
+    attr
+}
+
+pub fn vm_attributes_get_riscvExecuteNever(vm_attributes: vm_attributes_t) -> usize {
+    let ret = (vm_attributes.words[0] & 0x1usize) >> 0;
+    ret
+}
+
+pub fn vm_attributes_set_riscvExecuteNever(
+    mut vm_attributes: vm_attributes_t,
+    v64: usize,
+) -> vm_attributes_t {
+    vm_attributes.words[0] &= !0x1usize;
+    vm_attributes.words[0] |= (v64 << 0) & 0x1usize;
+    return vm_attributes;
+}

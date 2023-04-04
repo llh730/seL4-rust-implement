@@ -1,10 +1,12 @@
 use core::{alloc::Layout, mem::size_of};
 
 use crate::{
-    config::{seL4_SlotBits, tcbCNodeEntries, seL4_TCBBits, PAGE_BITS, RISCVPageBits, RISCVMegaPageBits},
+    config::{seL4_SlotBits, seL4_TCBBits, tcbCNodeEntries, RISCVMegaPageBits, RISCVPageBits},
     kernel::{
         object::structures::*,
-        thread::{arch_tcb_t, tcb_t, Arch_initContext},
+        thread::{
+            arch_tcb_t, ksCurThread, setThreadState, tcb_t, Arch_initContext, ThreadStateRestart,
+        },
         vspace::{
             deleteASID, findVSpaceForASID, pageBitsForSize, unmapPage, unmapPageTable,
             RISCV_4K_Page, RISCV_Mega_Page, VMReadWrite,
@@ -14,7 +16,10 @@ use crate::{
 };
 extern crate alloc;
 
-use super::{cap::ensureNoChildren, endpoint::cancelAllIPC};
+use super::{
+    cap::{ensureNoChildren, insertNewCap},
+    endpoint::{cancelAllIPC, performInvocation_Endpoint},
+};
 
 //bits
 
@@ -55,19 +60,17 @@ pub struct deriveCap_ret {
 }
 
 //FIXME:this size may not be corrected
-pub fn getObjectSize(t:usize,userObjSize:usize)->usize{
-    match t{
-        seL4_TCBObject=>seL4_TCBBits,
-        seL4_EndpointObject=>seL4_EndpointBits,
-        seL4_CapTableObject=>seL4_SlotBits+userObjSize,
-        seL4_UntypedObject=>userObjSize,
-        seL4_RISCV_4K_Page | seL4_RISCV_PageTableObject=>RISCVPageBits,
-        seL4_RISCV_Mega_Page=>RISCVMegaPageBits,
-        _=>panic!("invalid object type:{}",t),
+pub fn getObjectSize(t: usize, userObjSize: usize) -> usize {
+    match t {
+        seL4_TCBObject => seL4_TCBBits,
+        seL4_EndpointObject => seL4_EndpointBits,
+        seL4_CapTableObject => seL4_SlotBits + userObjSize,
+        seL4_UntypedObject => userObjSize,
+        seL4_RISCV_4K_Page | seL4_RISCV_PageTableObject => RISCVPageBits,
+        seL4_RISCV_Mega_Page => RISCVMegaPageBits,
+        _ => panic!("invalid object type:{}", t),
     }
 }
-
-
 
 pub fn isCapRevocable(_derivedCap: *const cap_t, _srcCap: *const cap_t) -> bool {
     if isArchCap(_derivedCap) {
@@ -154,10 +157,11 @@ pub fn sameRegionAs(cap1: *const cap_t, cap2: *const cap_t) -> bool {
 
 pub fn createObject(
     objectType: usize,
-    regionBase: *mut u8,
+    regionptr: usize,
     userSize: usize,
     deviceMemory: bool,
 ) -> *const cap_t {
+    let regionBase = regionptr as *mut u8;
     match objectType {
         seL4_TCBObject => {
             let tcb = regionBase as *mut tcb_t;
@@ -214,13 +218,31 @@ pub fn createObject(
     }
 }
 
-pub fn createNewObject(objectType:usize,parent:*const cte_t,destCnode:*const cte_t,destOffset:usize,destLength:usize,regionBase: *mut u8,userSize:usize,deviceMemory: bool){
-    let objectSize=getObjectSize(objectType, userSize);
-    let totalObjectSize=destLength<<objectSize;
-    let nextFreeArea
-    cap=createObject(t,)
+pub fn createNewObject(
+    objectType: usize,
+    parent: *const cte_t,
+    destCnode: *const cte_t,
+    destOffset: usize,
+    destLength: usize,
+    regionBase: *mut u8,
+    userSize: usize,
+    deviceMemory: bool,
+) {
+    let objectSize = getObjectSize(objectType, userSize);
+    // let totalObjectSize = destLength << objectSize;
+    let nextFreeArea = regionBase;
+    for i in 0..destLength {
+        let cap = createObject(
+            objectType,
+            nextFreeArea as usize + (i << objectSize),
+            userSize,
+            deviceMemory,
+        );
+        let targetSlot =
+            (destCnode as usize + (destOffset + i) * size_of::<cte_t>()) as *const cte_t;
+        insertNewCap(parent, targetSlot, cap);
+    }
 }
-
 
 pub fn Arch_sameObjectAs(cap_a: *const cap_t, cap_b: *const cap_t) -> bool {
     if (cap_get_capType(cap_a) == cap_frame_cap) && (cap_get_capType(cap_b) == cap_frame_cap) {
@@ -401,4 +423,46 @@ pub fn deriveCap(slot: *const cte_t, cap: *const cap_t) -> deriveCap_ret {
         }
     }
     ret
+}
+
+pub fn decodeInvocation(
+    invLabel: usize,
+    length: usize,
+    capIndex: usize,
+    slot: *const cte_t,
+    cap: *const cap_t,
+    block: bool,
+    call: bool,
+    buffer: usize,
+) -> exception_t {
+    match cap_get_capType(cap) {
+        cap_endpoint_cap => unsafe {
+            setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            let canGrant = if cap_endpoint_cap_get_capCanGrant(cap) != 0 {
+                true
+            } else {
+                false
+            };
+            let canGrantReply = if cap_endpoint_cap_get_capCanGrantReply(cap) != 0 {
+                true
+            } else {
+                false
+            };
+            performInvocation_Endpoint(
+                cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t,
+                cap_endpoint_cap_get_capEPBadge(cap),
+                canGrant,
+                canGrantReply,
+                block,
+                call,
+            )
+        },
+        cap_zombie_cap => {
+            panic!("attempt to invoke a zombie cap");
+        }
+        cap_null_cap => {
+            panic!("attempt to invoke a null cap");
+        }
+        _ => panic!("Invalid cap :{}", cap_get_capType(cap)),
+    }
 }

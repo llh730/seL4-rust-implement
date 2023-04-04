@@ -1,19 +1,19 @@
-use crate::config::{msgInfoRegister, SchedulerAction_ChooseNewThread};
+use crate::config::{msgInfoRegister, n_msgRegisters, SchedulerAction_ChooseNewThread};
 use crate::kernel::object::cspace::{lookupCap, lookupCapAndSlot};
 use crate::kernel::object::endpoint::{performInvocation_Endpoint, receiveIPC};
 use crate::kernel::object::msg::{
     seL4_MessageInfo_ptr_get_label, seL4_MessageInfo_ptr_get_length, seL4_MessageInfo_t,
 };
-use crate::kernel::object::objecttype::cap_endpoint_cap;
+use crate::kernel::object::objecttype::{cap_endpoint_cap, decodeInvocation};
 use crate::kernel::object::structures::{
     cap_endpoint_cap_get_capCanGrant, cap_endpoint_cap_get_capCanGrantReply,
     cap_endpoint_cap_get_capEPBadge, cap_endpoint_cap_get_capEPPtr, cap_get_capType, cap_t, cte_t,
     endpoint_t, exception_t,
 };
 use crate::kernel::thread::{
-    activateThread, capRegister, getRegister, ksCurThread, ksSchedulerAction, lookupExtraCaps,
-    messageInfoFromWord, rescheduleRequired, schedule, setThreadState, tcbSchedDequeue,
-    tcbSchedEnqueue, tcb_t, ThreadStateExited, ThreadStateRestart,
+    activateThread, capRegister, getMsgRegisterNumber, getRegister, ksCurThread, ksSchedulerAction,
+    lookupExtraCaps, messageInfoFromWord, rescheduleRequired, schedule, setThreadState,
+    tcbSchedDequeue, tcbSchedEnqueue, tcb_t, ThreadStateExited, ThreadStateRestart,
 };
 use crate::kernel::vspace::lookupIPCBuffer;
 use crate::println;
@@ -108,42 +108,6 @@ pub fn sys_send() -> isize {
     0
 }
 
-pub fn decodeInvocation(
-    invLabel: usize,
-    length: usize,
-    capIndex: usize,
-    slot: *const cte_t,
-    cap: *const cap_t,
-    block: bool,
-    call: bool,
-    buffer: usize,
-) -> exception_t {
-    match cap_get_capType(cap) {
-        cap_endpoint_cap => unsafe {
-            setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
-            let canGrant = if cap_endpoint_cap_get_capCanGrant(cap) != 0 {
-                true
-            } else {
-                false
-            };
-            let canGrantReply = if cap_endpoint_cap_get_capCanGrantReply(cap) != 0 {
-                true
-            } else {
-                false
-            };
-            performInvocation_Endpoint(
-                cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t,
-                cap_endpoint_cap_get_capEPBadge(cap),
-                canGrant,
-                canGrantReply,
-                block,
-                call,
-            )
-        },
-        _ => panic!("Invalid cap :{}", cap_get_capType(cap)),
-    }
-}
-
 pub fn handleRecv(isBlocking: bool) {
     unsafe {
         let epCPtr = getRegister(ksCurThread as *const tcb_t, capRegister);
@@ -153,6 +117,19 @@ pub fn handleRecv(isBlocking: bool) {
                 receiveIPC(ksCurThread as *mut tcb_t, lu_ret.cap, isBlocking);
             }
             _ => panic!("unknown cap:{}", cap_get_capType(lu_ret.cap)),
+        }
+    }
+}
+
+#[inline]
+pub fn getSyscallArg(i: usize, ipc_buffer: usize) -> usize {
+    unsafe {
+        if i < n_msgRegisters {
+            return getRegister(ksCurThread as *const tcb_t, getMsgRegisterNumber(i));
+        } else {
+            let ptr = (ipc_buffer + i + 1) as *const usize;
+            assert!(ipc_buffer != 0);
+            return *ptr;
         }
     }
 }

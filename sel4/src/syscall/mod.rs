@@ -6,8 +6,8 @@ const SYSCALL_GET_TIME: usize = 169;
 const SYSCALL_TASK_INFO: usize = 410;
 const SYSCALL_SEND:usize=usize::MAX;
 
-mod fs;
-mod process;
+pub mod fs;
+pub mod process;
 
 use fs::*;
 use process::*;

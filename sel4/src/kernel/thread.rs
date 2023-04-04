@@ -290,6 +290,23 @@ pub fn removeFromBitmap(dom: usize, prio: usize) {
     }
 }
 
+
+pub fn setMR(receiver:*const tcb_t,receivedBuffer: usize,offset:usize,reg:usize)->usize{
+    if offset>=n_msgRegisters{
+        if receivedBuffer!=0{
+            let ptr= (receivedBuffer+(offset+1)*8) as *mut usize;
+            unsafe{
+                *ptr=reg;
+            }
+            return offset+1;
+        } else {
+            return n_msgRegisters;
+        }
+    } else {
+        setRegister(receiver as *mut tcb_t, getMsgRegisterNumber(offset) , reg);
+        return offset+1;
+    }
+}
 pub fn tcbSchedEnqueue(_tcb: *mut tcb_t) {
     unsafe {
         let tcb = &(*_tcb);

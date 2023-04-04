@@ -2,22 +2,34 @@ use core::arch::asm;
 use core::mem;
 use riscv::register::satp;
 
+use crate::syscall::process::getSyscallArg;
 use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
 
 use super::boot::{
-    get_n_paging, it_alloc_paging, p_region_t, provide_cap, rootserver, v_region_t, write_slot,
+    clearMemory, current_extra_caps, get_n_paging, it_alloc_paging, p_region_t, provide_cap,
+    rootserver, v_region_t, write_slot,
+};
+use super::object::cap::isFinalcapability;
+use super::object::msg::{
+    seL4_MessageInfo_new, vmAttributesFromWord, vm_attributes_get_riscvExecuteNever,
 };
 use super::object::structures::{
     cap_frame_cap_get_capFBasePtr, cap_frame_cap_get_capFIsDevice,
-    cap_frame_cap_get_capFMappedAddress, cap_frame_cap_get_capFSize,
-    cap_frame_cap_get_capFVMRights, cap_frame_cap_new, cap_get_capType, cap_null_cap_new,
-    cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTMappedASID,
-    cap_page_table_cap_get_capPTMappedAddress, cap_page_table_cap_new, cap_t, cte_t, exception_t,
-    pte_ptr_get_execute, pte_ptr_get_ppn, pte_ptr_get_read, pte_ptr_get_valid, pte_ptr_get_write,
+    cap_frame_cap_get_capFMappedASID, cap_frame_cap_get_capFMappedAddress,
+    cap_frame_cap_get_capFSize, cap_frame_cap_get_capFVMRights, cap_frame_cap_new,
+    cap_frame_cap_set_capFMappedASID, cap_frame_cap_set_capFMappedAddress, cap_get_capType,
+    cap_null_cap_new, cap_page_table_cap_get_capPTBasePtr, cap_page_table_cap_get_capPTIsMapped,
+    cap_page_table_cap_get_capPTMappedASID, cap_page_table_cap_get_capPTMappedAddress,
+    cap_page_table_cap_new, cap_page_table_cap_ptr_set_capPTIsMapped,
+    cap_page_table_cap_set_capPTIsMapped, cap_page_table_cap_set_capPTMappedASID,
+    cap_page_table_cap_set_capPTMappedAddress, cap_t, cte_t, exception_t, pte_ptr_get_execute,
+    pte_ptr_get_ppn, pte_ptr_get_read, pte_ptr_get_valid, pte_ptr_get_write,
 };
 
 use super::object::objecttype::*;
-use super::thread::{ksCurThread, tcb_t};
+use super::thread::{
+    ksCurThread, setMR, setRegister, setThreadState, tcb_t, wordFromMEssageInfo, ThreadStateRestart,
+};
 
 type pptr_t = usize;
 type paddr_t = usize;
@@ -40,7 +52,7 @@ pub const RISCV_Tera_Page: usize = 3;
 pub const VMKernelOnly: usize = 1;
 pub const VMReadOnly: usize = 2;
 pub const VMReadWrite: usize = 3;
-
+const asidInvalid: usize = 0;
 #[inline]
 pub fn pageBitsForSize(page_size: usize) -> usize {
     match page_size {
@@ -626,6 +638,282 @@ pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> usize {
     }
 }
 
-// 0x8021c000
-// 0x8021d000
-// 0x8021e000
+pub fn performPageTableInvocationUnmap(cap: *const cap_t, ctSlot: *const cte_t) -> exception_t {
+    if cap_page_table_cap_get_capPTIsMapped(cap) != 0 {
+        let pt = cap_page_table_cap_get_capPTBasePtr(cap);
+        unmapPageTable(
+            cap_page_table_cap_get_capPTMappedASID(cap),
+            cap_page_table_cap_get_capPTMappedAddress(cap),
+            pt,
+        );
+        clearMemory(pt as *mut u8, seL4_PageTableBits);
+    }
+    unsafe {
+        cap_page_table_cap_ptr_set_capPTIsMapped((*ctSlot).cap, 0);
+    }
+    exception_t::EXCEPTION_NONE
+}
+
+pub fn performPageTableInvocationMap(
+    cap: *const cap_t,
+    ctSlot: *mut cte_t,
+    pte: usize,
+    ptSlot: *mut usize,
+) -> exception_t {
+    unsafe {
+        (*ctSlot).cap = cap as *mut cap_t;
+        *ptSlot = pte;
+        sfence();
+        exception_t::EXCEPTION_NONE
+    }
+}
+
+pub fn decodeRISCVPageTableInvocation(
+    label: usize,
+    length: usize,
+    cte: *const cte_t,
+    cap: *const cap_t,
+    buffer: usize,
+) -> exception_t {
+    match label {
+        RISCVPageTableUnmap => {
+            if !isFinalcapability(cte) {
+                panic!("RISCVPageTableUnmap: cannot unmap if more than once cap exists");
+            }
+            if cap_page_table_cap_get_capPTIsMapped(cap) != 0 {
+                let asid = cap_page_table_cap_get_capPTMappedASID(cap);
+                let find_ret = findVSpaceForASID(asid);
+                let pte = cap_page_table_cap_get_capPTBasePtr(cap);
+                if find_ret.status == exception_t::EXCEPTION_NONE && find_ret.vspace_root == pte {
+                    panic!("RISCVPageTableUnmap: cannot call unmap on top level PageTable");
+                }
+            }
+            unsafe {
+                setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            }
+            performPageTableInvocationUnmap(cap, cte)
+        }
+        RISCVPageTableMap => unsafe {
+            if length < 2 || current_extra_caps.excaprefs[0] as usize == 0 {
+                panic!("RISCVPageTable: truncated message.");
+            }
+            if cap_page_table_cap_get_capPTIsMapped(cap) != 0 {
+                panic!("RISCVPageTable: PageTable is already mapped.");
+            }
+            let vaddr = getSyscallArg(0, buffer);
+            let lvl1ptCap = (*current_extra_caps.excaprefs[0]).cap;
+
+            if cap_get_capType(lvl1ptCap) != cap_page_table_cap
+                || cap_page_table_cap_get_capPTIsMapped(lvl1ptCap) == asidInvalid
+            {
+                panic!("RISCVPageTableMap: Invalid top-level PageTable.");
+            }
+            let lvl1pt = cap_page_table_cap_get_capPTBasePtr(lvl1ptCap) as *const usize;
+            let asid = cap_page_table_cap_get_capPTMappedASID(lvl1ptCap);
+            let find_ret = findVSpaceForASID(asid);
+            if find_ret.status != exception_t::EXCEPTION_NONE
+                || find_ret.vspace_root != lvl1pt as usize
+            {
+                panic!("RISCVPageTableMap: ASID lookup failed");
+            }
+            let lu_ret = lookupPTSlot(lvl1pt as usize, vaddr);
+            if lu_ret.ptBitsLeft == seL4_PageBits
+                || pte_ptr_get_valid(lu_ret.ptSlot as *const usize) != 0
+            {
+                panic!("RISCVPageTableMap: All objects mapped at this address");
+            }
+            let ptSlot = lu_ret.ptSlot as *mut usize;
+            let paddr = cap_page_table_cap_get_capPTBasePtr(cap);
+            let pte = pte_new(
+                paddr >> seL4_PageBits,
+                0, /* sw */
+                0, /* dirty (reserved non-leaf) */
+                0, /* accessed (reserved non-leaf) */
+                0, /* global */
+                0, /* user (reserved non-leaf) */
+                0, /* execute */
+                0, /* write */
+                0, /* read */
+                1, /* valid */
+            );
+            cap_page_table_cap_set_capPTIsMapped(cap, 1);
+            cap_page_table_cap_set_capPTMappedASID(cap, asid);
+            cap_page_table_cap_set_capPTMappedAddress(cap, vaddr & !MASK!(lu_ret.ptBitsLeft));
+            setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            performPageTableInvocationMap(cap, cte as *mut cte_t, pte, ptSlot)
+        },
+        _ => panic!("unknown label in PageTableInvocation:{}", label),
+    }
+}
+
+pub fn RISCVGetWriteFromVMRights(vm_rights: usize) -> bool {
+    return vm_rights == VMReadWrite;
+}
+
+pub fn RISCVGetReadFromVMRights(vm_rights: usize) -> bool {
+    return vm_rights != VMKernelOnly;
+}
+
+// pub fn maskVMRights(vm_right1:usize,)
+pub fn makeUserPTE(paddr: usize, executable: bool, vm_rights: usize) -> usize {
+    let write = RISCVGetWriteFromVMRights(vm_rights);
+    let read = RISCVGetReadFromVMRights(vm_rights);
+    if !executable && !read && !write {
+        return 0;
+    }
+    pte_new(
+        paddr >> seL4_PageBits,
+        0,                   /* sw */
+        1,                   /* dirty (leaf) */
+        1,                   /* accessed (leaf) */
+        0,                   /* global */
+        1,                   /* user (leaf) */
+        executable as usize, /* execute */
+        write as usize,      /* write */
+        read as usize,       /* read */
+        1,                   /* valid */
+    )
+}
+
+pub fn decodeRISCVFrameInvocation(
+    label: usize,
+    length: usize,
+    cte: *const cte_t,
+    cap: *const cap_t,
+    call: bool,
+    buffer: *const usize,
+) -> exception_t {
+    match label {
+        RISCVPageMap => unsafe {
+            if length < 3 || current_extra_caps.excaprefs[0] as usize == 0 {
+                panic!("RISCVPageMap: Truncated message.");
+            }
+            let vaddr = getSyscallArg(0, buffer as usize);
+            let w_rightsMask = getSyscallArg(1, buffer as usize);
+            let attr = vmAttributesFromWord(getSyscallArg(2, buffer as usize));
+            let lvl1ptCap = (*current_extra_caps.excaprefs[0]).cap;
+            let frameSize = cap_frame_cap_get_capFSize(cap);
+            let capVMRights = cap_frame_cap_get_capFVMRights(cap);
+            if cap_get_capType(lvl1ptCap) != cap_page_table_cap
+                || !cap_page_table_cap_get_capPTIsMapped(lvl1ptCap) != 0
+            {
+                panic!("RISCVPageMap: Bad PageTable cap.");
+            }
+            let lvl1pt = cap_page_table_cap_get_capPTBasePtr(lvl1ptCap);
+            let asid = cap_page_table_cap_get_capPTMappedASID(lvl1ptCap);
+            let find_ret = findVSpaceForASID(asid);
+            if find_ret.status != exception_t::EXCEPTION_NONE || find_ret.vspace_root != lvl1pt {
+                panic!("RISCVPageMap: ASID lookup failed");
+            }
+
+            let lu_ret = lookupPTSlot(lvl1pt, vaddr);
+            if lu_ret.ptBitsLeft != pageBitsForSize(frameSize) {
+                panic!(
+                    " ptBitsLeft :{} pageBitsForSize :{} not matched!!",
+                    lu_ret.ptBitsLeft,
+                    pageBitsForSize(frameSize)
+                );
+            }
+            let frame_asid = cap_frame_cap_get_capFMappedASID(cap);
+            if frame_asid != asidInvalid {
+                if frame_asid != asid {
+                    panic!("RISCVPageMap: Attempting to remap a frame that does not belong to the passed address space");
+                }
+                let mapped_vaddr = cap_frame_cap_get_capFMappedAddress(cap);
+                if mapped_vaddr != vaddr {
+                    panic!("RISCVPageMap: attempting to map frame into multiple addresses");
+                }
+                if isPTEPageTable(lu_ret.ptSlot) {
+                    panic!("RISCVPageMap: no mapping to remap.");
+                }
+            } else {
+                if pte_ptr_get_valid(lu_ret.ptSlot as *const usize) != 0 {
+                    panic!("Virtual address already mapped");
+                }
+            }
+            // let vmRights=m
+            let frame_paddr = cap_frame_cap_get_capFBasePtr(cap);
+            cap_frame_cap_set_capFMappedASID(cap, asid);
+            cap_frame_cap_set_capFMappedAddress(cap, vaddr);
+            let executable = vm_attributes_get_riscvExecuteNever(attr) != 0;
+            let pte = makeUserPTE(frame_paddr, executable, w_rightsMask);
+            setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            performPageTableInvocationMapPTE(
+                cap,
+                cte as *mut cte_t,
+                pte,
+                lu_ret.ptSlot as *mut usize,
+            )
+        },
+        RISCVPageUnmap => {
+            unsafe {
+                setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            }
+            perfomrPageInvocationUnmap(cap, cte as *mut cte_t)
+        }
+        RISCVPageGetAddress => {
+            unsafe {
+                setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            }
+            performPageGetAddress(cap_frame_cap_get_capFBasePtr(cap), call)
+        }
+        _ => panic!("invalid label:{}", label),
+    }
+}
+
+pub fn updatePTE(pte: usize, base: *mut usize) -> exception_t {
+    unsafe {
+        *base = pte;
+        sfence();
+        exception_t::EXCEPTION_NONE
+    }
+}
+
+pub fn performPageTableInvocationMapPTE(
+    cap: *const cap_t,
+    ctSlot: *mut cte_t,
+    pte: usize,
+    base: *mut usize,
+) -> exception_t {
+    unsafe {
+        (*ctSlot).cap = cap as *mut cap_t;
+    }
+    updatePTE(pte, base)
+}
+
+pub fn perfomrPageInvocationUnmap(cap: *const cap_t, ctSlot: *mut cte_t) -> exception_t {
+    if cap_frame_cap_get_capFMappedASID(cap) != asidInvalid {
+        unmapPage(
+            cap_frame_cap_get_capFSize(cap),
+            cap_frame_cap_get_capFMappedASID(cap),
+            cap_frame_cap_get_capFMappedAddress(cap),
+            cap_frame_cap_get_capFBasePtr(cap),
+        );
+    }
+
+    unsafe {
+        let slotCap = (*ctSlot).cap;
+        cap_frame_cap_set_capFMappedAddress(slotCap, 0);
+        cap_frame_cap_set_capFMappedASID(slotCap, asidInvalid);
+        (*ctSlot).cap = slotCap;
+    }
+    exception_t::EXCEPTION_NONE
+}
+
+pub fn performPageGetAddress(vbase_ptr: usize, call: bool) -> exception_t {
+    unsafe {
+        let thread = ksCurThread as *mut tcb_t;
+        if call {
+            let ipcBuffer = lookupIPCBuffer(true, thread as *mut tcb_t);
+            setRegister(thread as *mut tcb_t, badgeRegister, 0);
+            let length = setMR(thread, ipcBuffer, 0, vbase_ptr);
+            setRegister(
+                thread,
+                msgInfoRegister,
+                wordFromMEssageInfo(seL4_MessageInfo_new(0, 0, 0, length)),
+            );
+        }
+        setThreadState(thread, ThreadStateRestart);
+        exception_t::EXCEPTION_NONE
+    }
+}
