@@ -17,6 +17,7 @@ use crate::{
             ThreadStateRunning,
         },
     },
+    println,
     traps::restore_user_context,
 };
 #[repr(align(4096))]
@@ -92,15 +93,12 @@ pub fn get_app_data(app_id: usize) -> &'static [u8] {
 pub fn get_app_phys_addr(app_id: usize) -> p_region_t {
     extern "C" {
         fn _num_app();
-        fn app_0_start();
     }
-    let num_app_ptr = _num_app as usize as *const usize;
     let num_app = get_num_app();
-    let app_start = unsafe { core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1) };
     assert!(app_id < num_app);
     p_region_t {
-        start: app_start[app_id] as usize,
-        end: app_start[app_id + 1] as usize,
+        start: get_base_i(app_id) as usize,
+        end: get_base_i(app_id + 1) as usize,
     }
 }
 
@@ -111,25 +109,23 @@ pub fn load_apps() {
     let num_app_ptr = _num_app as usize as *const usize;
     let num_app = get_num_app();
     let app_start = unsafe { core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1) };
-    // clear i-cache first
     unsafe {
         core::arch::asm!("fence.i");
     }
-    // load apps
     for i in 0..num_app {
         let base_i = get_base_i(i);
-        // clear region
+        // println!("in here");
         (base_i..base_i + APP_SIZE_LIMIT)
             .for_each(|addr| unsafe { (addr as *mut u8).write_volatile(0) });
-        // load app from data section to memory
+        // println!("in here");
         let src = unsafe {
             core::slice::from_raw_parts(app_start[i] as *const u8, app_start[i + 1] - app_start[i])
         };
+
         let dst = unsafe { core::slice::from_raw_parts_mut(base_i as *mut u8, src.len()) };
         dst.copy_from_slice(src);
     }
 }
-
 
 pub fn run_first_task() {
     unsafe {

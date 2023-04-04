@@ -62,7 +62,6 @@ pub fn sys_exit(exit_code: i32) -> isize {
 pub fn sys_yield() -> isize {
     info!("[kernel] Application yield");
     unsafe {
-        // tcbSchedDequeue(ksCurThread as *const tcb_t);
         tcbSchedEnqueue(ksCurThread as *mut tcb_t);
     }
     rescheduleRequired();

@@ -16,13 +16,13 @@ use crate::{
         BI_FRAME_SIZE_BITS, CONFIG_ROOT_CNODE_SIZE_BITS, MAX_NUM_FREEMEM_REG, MAX_NUM_RESV_REG,
         PAGE_BITS, PAGE_SIZE, SIE_SEIE, SIE_STIE, USER_STACK_SIZE,
     },
-    elfloader::{get_app_data, get_app_phys_addr, get_num_app, USER_STACK},
+    elfloader::{get_app_data, get_app_phys_addr, get_num_app, USER_STACK, load_apps},
     kernel::{
         object::structures::{
             cap_frame_cap_get_capFMappedAddress, cap_null_cap_new, mdb_node_new, thread_state_new,
         },
         thread::{configureIdleThread, SSTATUS},
-        vspace::{create_address_space_alloced},
+        vspace::create_address_space_alloced,
     },
     println, traps, BIT, ROUND_DOWN, ROUND_UP,
 };
@@ -32,9 +32,9 @@ use super::{
         cap::cteInsert,
         objecttype::{cap_get_capPtr, cap_thread_cap, deriveCap},
         structures::{
-            cap_cnode_cap_new, cap_domain_cap_new, cap_frame_cap_new, cap_t, cap_thread_cap_new,
-            cte_t, mdb_node_set_mdbFirstBadged, mdb_node_set_mdbRevocable, mdb_node_t,
-            thread_state_set_tsType, thread_state_t,
+            cap_cnode_cap_new, cap_domain_cap_new, cap_endpoint_cap_new, cap_frame_cap_new, cap_t,
+            cap_thread_cap_new, cte_t, endpoint_t, mdb_node_set_mdbFirstBadged,
+            mdb_node_set_mdbRevocable, mdb_node_t, thread_state_set_tsType, thread_state_t,
         },
     },
     thread::{
@@ -518,7 +518,7 @@ pub fn create_initial_thread(
     unsafe {
         cte_ptr = alloc::alloc::alloc(cte_layout);
     }
-    // println!("create cte start :{:#x},end:{:#x}",cte_ptr as usize , cte_ptr as usize +cte_total_size);
+
     let mut rootCaps: [*const cte_t; tcbCNodeEntries] = [0 as *const cte_t; tcbCNodeEntries];
     for i in 0..tcbCNodeEntries {
         let ptr = (cte_ptr as usize + i * cte_size) as *mut cte_t;
@@ -557,6 +557,17 @@ pub fn create_initial_thread(
                 as *const cte_t,
             (*(thread as *const tcb_t)).rootCap[tcbBuffer],
         );
+        // let ep_size = mem::size_of::<endpoint_t>();
+        // let ep_layout = Layout::from_size_align(ep_size, 4).ok().unwrap();
+        // let ep_ptr: *mut u8;
+        // ep_ptr = alloc::alloc::alloc(ep_layout);
+        // let ep_cap = cap_endpoint_cap_new(0, 0, 0, 1, 1, ep_ptr as usize);
+        // cteInsert(
+        //     ep_cap,
+        //     (cap_get_capPtr(root_cnode_cap) + 12 * mem::size_of::<cte_t>()) as *const cte_t,
+        //     (cap_get_capPtr(root_cnode_cap) + 13 * mem::size_of::<cte_t>()) as *const cte_t,
+        // );
+        // println!("insert ep cap at:{:#x}",cap_get_capPtr(root_cnode_cap) + 13 * mem::size_of::<cte_t>());
     }
     unsafe {
         (*tcb).tcbIPCBuffer = ipcbuf_vptr;
@@ -578,12 +589,13 @@ pub fn create_initial_thread(
 }
 
 pub fn try_inital_kernel() {
+    load_apps();
     map_kernel_window();
     activate_kernel_vspace();
     traps::init();
     set_sie_mask(BIT!(SIE_SEIE) | BIT!(SIE_STIE));
     traps::enable_timer_interrupt();
-    load_apps();
+    init_thread();
     // create_rootserver_objects(0, root_server_v_region, 0);
     // let root_cnode_cap = create_root_cnode();
     // create_domain_cap(root_cnode_cap);
@@ -648,7 +660,10 @@ pub fn create_thread(
         vspace_ptr as usize + vspace_size
     );
 
-    println!("virtual address :{:#x} - {:#x}",it_v_reg.start,it_v_reg.end);
+    println!(
+        "virtual address :{:#x} - {:#x}",
+        it_v_reg.start, it_v_reg.end
+    );
 
     let mut paddr = get_app_phys_addr(app_id);
     paddr.start += offset;
@@ -692,7 +707,7 @@ pub fn init_core_state(thread: *const tcb_t) {
     }
 }
 
-pub fn load_apps() {
+pub fn init_thread() {
     let num_app = get_num_app();
     for i in 0..num_app {
         from_elf(get_app_data(i), i);
@@ -708,6 +723,7 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
     let mut start_va: usize = usize::MAX;
     let mut end_va: usize = 0;
     let mut offset = 0;
+    println!("in here");
     for i in 0..ph_count {
         let ph = elf.program_header(i).unwrap();
         let data = if let SegmentData::Undefined(data) = ph.get_data(&elf).unwrap() {
@@ -716,7 +732,6 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
             panic!("can not parser elf!");
         };
         if i == 0 {
-            // println!("data:{:#x} phsy:{:#x}",data.as_ptr() as usize,get_app_phys_addr(app_id).start);
             offset = data.as_ptr() as usize - get_app_phys_addr(app_id).start;
         }
         if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
@@ -732,6 +747,7 @@ pub fn from_elf(elf_data: &[u8], app_id: usize) {
             };
         }
     }
+    println!("in here");
     let it_v_reg = v_region_t {
         start: start_va,
         end: end_va + PAGE_SIZE + USER_STACK_SIZE + PAGE_SIZE,
