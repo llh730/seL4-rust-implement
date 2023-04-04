@@ -216,7 +216,9 @@ pub fn createObject(
 
 pub fn createNewObject(objectType:usize,parent:*const cte_t,destCnode:*const cte_t,destOffset:usize,destLength:usize,regionBase: *mut u8,userSize:usize,deviceMemory: bool){
     let objectSize=getObjectSize(objectType, userSize);
-
+    let totalObjectSize=destLength<<objectSize;
+    let nextFreeArea
+    cap=createObject(t,)
 }
 
 
