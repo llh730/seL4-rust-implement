@@ -1680,3 +1680,184 @@ pub fn cap_thread_cap_get_capTCBPtr(cap: *const cap_t) -> usize {
     }
     ret
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct notification_t {
+    words: [usize; 4],
+}
+
+#[inline]
+pub fn notification_ptr_get_ntfnBoundTCB(notification_ptr: *const notification_t) -> usize {
+    let ret: usize;
+    unsafe {
+        ret = (*notification_ptr).words[3] & 0x7fffffffffusize;
+    }
+    ret
+}
+
+#[inline]
+pub fn notification_ptr_set_ntfnBoundTCB(ptr: *mut notification_t, v64: usize) {
+    unsafe {
+        (*ptr).words[3] &= !0x7fffffffffusize;
+        (*ptr).words[3] |= (v64 >> 0) & 0x7fffffffffusize;
+    }
+}
+
+#[inline]
+pub fn notification_ptr_get_ntfnMsgIdentifier(notification_ptr: *const notification_t) -> usize {
+    let ret: usize;
+    unsafe {
+        ret = (*notification_ptr).words[2] & 0xffffffffffffffffusize;
+    }
+    ret
+}
+
+#[inline]
+pub fn notification_ptr_set_ntfnMsgIdentifier(ptr: *mut notification_t, v64: usize) {
+    unsafe {
+        (*ptr).words[2] &= !0xffffffffffffffffusize;
+        (*ptr).words[2] |= (v64 >> 0) & 0xffffffffffffffffusize;
+    }
+}
+
+#[inline]
+pub fn notification_ptr_get_ntfnQueue_head(notification_ptr: *const notification_t) -> usize {
+    let ret: usize;
+    unsafe {
+        ret = (*notification_ptr).words[1] & 0x7fffffffffusize;
+    }
+    ret
+}
+
+#[inline]
+pub fn notification_ptr_set_ntfnQueue_head(ptr: *mut notification_t, v64: usize) {
+    unsafe {
+        (*ptr).words[1] &= !0x7fffffffffusize;
+        (*ptr).words[1] |= (v64 >> 0) & 0x7fffffffffusize;
+    }
+}
+
+#[inline]
+pub fn notification_ptr_get_ntfnQueue_tail(notification_ptr: *const notification_t) -> usize {
+    let ret: usize;
+    unsafe {
+        ret = (*notification_ptr).words[0] & 0xfffffffffe000000usize;
+    }
+    ret
+}
+
+#[inline]
+pub fn notification_ptr_set_ntfnQueue_tail(ptr: *mut notification_t, v64: usize) {
+    unsafe {
+        (*ptr).words[0] &= !0xfffffffffe000000usize;
+        (*ptr).words[0] |= (v64 >> 0) & 0xfffffffffe000000usize;
+    }
+}
+
+#[inline]
+pub fn notification_ptr_get_state(notification_ptr: *const notification_t) -> usize {
+    let ret: usize;
+    unsafe {
+        ret = (*notification_ptr).words[0] & 0x3usize;
+    }
+    ret
+}
+
+#[inline]
+pub fn notification_ptr_set_state(ptr: *mut notification_t, v64: usize) {
+    unsafe {
+        (*ptr).words[0] &= !0x3usize;
+        (*ptr).words[0] |= (v64 >> 0) & 0x3usize;
+    }
+}
+
+pub fn cap_notification_cap_new(
+    capNtfnBadge: usize,
+    capNtfnCanReceive: usize,
+    capNtfnCanSend: usize,
+    capNtfnPtr: usize,
+) -> *const cap_t {
+    unsafe {
+        let size = size_of::<cap_t>();
+        let layout = Layout::from_size_align(size, 4).ok().unwrap();
+        let ptr = alloc::alloc::alloc(layout) as *mut cap_t;
+        let mut cap = cap_t::default();
+        cap.words[0] = 0
+            | (cap_notification_cap & 0x1fusize) << 59
+            | (capNtfnCanReceive & 0x1usize) << 58
+            | (capNtfnCanSend & 0x1usize) << 57
+            | (capNtfnPtr & 0x7fffffffffusize) >> 0;
+        cap.words[1] = 0 | capNtfnBadge << 0;
+        *ptr = cap;
+        ptr
+    }
+}
+
+#[inline]
+pub fn cap_notification_cap_get_capNtfnBadge(cap: *const cap_t) -> usize {
+    unsafe {
+        let ret = (*cap).words[1] & 0xffffffffffffffffusize;
+        ret
+    }
+}
+
+
+#[inline] 
+pub fn cap_notification_cap_set_capNtfnBadge(cap:*mut cap_t,v64:usize){
+    unsafe{
+        (*cap).words[1]&=!0xffffffffffffffffusize;
+        (*cap).words[1]|=v64 &0xffffffffffffffffusize;
+    }
+}
+
+
+#[inline]
+pub fn cap_notification_cap_get_capNtfnCanReceive(cap: *const cap_t) -> usize {
+    unsafe {
+        let ret = (*cap).words[0] & 0x400000000000000usize;
+        ret
+    }
+}
+
+
+#[inline] 
+pub fn cap_notification_cap_set_capNtfnCanReceive(cap:*mut cap_t,v64:usize){
+    unsafe{
+        (*cap).words[0]&=!0x400000000000000usize;
+        (*cap).words[0]|=v64 &0x400000000000000usize;
+    }
+}
+
+#[inline]
+pub fn cap_notification_cap_get_capNtfnCanSend(cap: *const cap_t) -> usize {
+    unsafe {
+        let ret = (*cap).words[0] & 0x200000000000000usize;
+        ret
+    }
+}
+
+
+#[inline] 
+pub fn cap_notification_cap_set_capNtfnCanSend(cap:*mut cap_t,v64:usize){
+    unsafe{
+        (*cap).words[0]&=!0x200000000000000usize;
+        (*cap).words[0]|=v64 &0x200000000000000usize;
+    }
+}
+
+#[inline]
+pub fn cap_notification_cap_get_capNtfnPtr(cap: *const cap_t) -> usize {
+    unsafe {
+        let ret = (*cap).words[0] & 0x7fffffffffusize;
+        ret
+    }
+}
+
+
+#[inline] 
+pub fn cap_notification_cap_set_capNtfnPtr(cap:*mut cap_t,v64:usize){
+    unsafe{
+        (*cap).words[0]&=!0x7fffffffffusize;
+        (*cap).words[0]|=v64 &0x7fffffffffusize;
+    }
+}

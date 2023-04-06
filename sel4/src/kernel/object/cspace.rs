@@ -140,22 +140,21 @@ pub fn resolveAddressBits(
         let mut capGuard: usize;
         let mut offset: usize;
         let mut slot: *mut cte_t;
-        if unlikely(cap_get_capType(_nodeCap) != cap_cnode_cap) {
+        if unlikely(cap_get_capType(nodeCap) != cap_cnode_cap) {
             ret.status = exception_t::EXCEPTION_LOOKUP_FAULT;
             return ret;
         }
 
         while true {
-            radixBits = cap_cnode_cap_get_capCNodeRadix(_nodeCap);
-            guardBits = cap_cnode_cap_get_capCNodeGuardSize(_nodeCap);
+            radixBits = cap_cnode_cap_get_capCNodeRadix(nodeCap);
+            guardBits = cap_cnode_cap_get_capCNodeGuardSize(nodeCap);
             levelBits = radixBits + guardBits;
             assert!(levelBits != 0);
-            capGuard = cap_cnode_cap_get_capCNodeGuard(_nodeCap);
+            capGuard = cap_cnode_cap_get_capCNodeGuard(nodeCap);
             guard = (capptr >> ((n_bits - guardBits) & MASK!(wordRadix))) & MASK!(guardBits);
 
             if unlikely(guardBits > n_bits || guard != capGuard) {
-                ret.status = exception_t::EXCEPTION_LOOKUP_FAULT;
-                return ret;
+                panic!("guardBits and cap Guard bits not matched ! guard :{:#x}  capGuard :{:#x}",guard,capGuard);
             }
 
             if unlikely(levelBits > n_bits) {
@@ -163,7 +162,7 @@ pub fn resolveAddressBits(
                 return ret;
             }
             offset = (capptr >> (n_bits - levelBits)) & MASK!(radixBits);
-            slot = ((cap_cnode_cap_get_capCNodePtr(_nodeCap)) + offset) as *mut cte_t;
+            slot = ((cap_cnode_cap_get_capCNodePtr(nodeCap)) + offset) as *mut cte_t;
 
             if likely(n_bits == levelBits) {
                 ret.slot = slot;
@@ -173,7 +172,7 @@ pub fn resolveAddressBits(
 
             n_bits -= levelBits;
             nodeCap = (*slot).cap;
-            if unlikely(cap_get_capType(_nodeCap) != cap_cnode_cap) {
+            if unlikely(cap_get_capType(nodeCap) != cap_cnode_cap) {
                 ret.slot = slot;
                 ret.bitsRemaining = n_bits;
                 return ret;

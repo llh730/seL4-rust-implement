@@ -4,3 +4,4 @@ pub mod structures;
 pub mod cspace;
 pub mod endpoint;
 pub mod msg;
+pub mod notification;

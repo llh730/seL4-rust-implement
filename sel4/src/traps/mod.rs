@@ -81,12 +81,15 @@ pub fn trap_handler() {
         let scause = (*(ksCurThread as *const tcb_t)).tcbArch.registers[31];
         let sepc = (*(ksCurThread as *const tcb_t)).tcbArch.registers[33];
         let stval = stval::read();
+        // let register=&((*(ksCurThread as *const tcb_t)).tcbArch.registers);
+        // for i in 0..34{
+        //     println!("register[{}]:{:#x}",i,register[i]);
+        // }
         match scause {
             RISCVEnvCall => {
                 let mut cx = (&((*(ksCurThread as *const tcb_t)).tcbArch)) as *const arch_tcb_t
                     as *mut arch_tcb_t;
                 (*cx).registers[NextIP] = sepc + 4;
-                // println!("sepc:{:#x}",(*cx).registers[NextIP]);
                 (*cx).registers[9] = syscall(
                     (*cx).registers[16],
                     [(*cx).registers[9], (*cx).registers[10], (*cx).registers[11]],

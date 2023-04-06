@@ -1,4 +1,4 @@
-use crate::kernel::{
+use crate::{kernel::{
     object::structures::{
         cap_t, thread_state_get_blockingIPCBadge, thread_state_get_blockingIPCCanGrant,
         thread_state_get_blockingIPCCanGrantReply, thread_state_get_blockingIPCIsCall,
@@ -9,7 +9,7 @@ use crate::kernel::{
         tcb_queue_t, tcb_t, ThreadStateBlockedOnReceive, ThreadStateBlockedOnSend,
         ThreadStateInactive, ThreadStateRestart, ThreadStateRunning,
     },
-};
+}, println};
 
 use super::structures::{
     cap_endpoint_cap_get_capCanGrant, cap_endpoint_cap_get_capEPPtr, endpoint_ptr_get_epQueue_head,
@@ -28,8 +28,8 @@ pub fn ep_ptr_set_queue(epptr: *const endpoint_t, queue: tcb_queue_t) {
 }
 
 const EPState_Idle: usize = 0;
-const EPState_Send: usize = 0;
-const EPState_Recv: usize = 0;
+const EPState_Send: usize = 1;
+const EPState_Recv: usize = 2;
 
 #[inline]
 pub fn ep_ptr_get_queue(epptr: *const endpoint_t) -> tcb_queue_t {
@@ -54,6 +54,7 @@ pub fn sendIPC(
         match endpoint_ptr_get_state(epptr) {
             EPState_Idle | EPState_Send => {
                 if blocking {
+                    println!("waiting in sendIPC ");
                     thread_state_set_tsType(
                         (*thread).tcbState as *mut thread_state_t,
                         ThreadStateBlockedOnSend,
@@ -88,6 +89,7 @@ pub fn sendIPC(
                 }
             }
             EPState_Recv => {
+                println!("executing in sendIPC ");
                 let mut queue = ep_ptr_get_queue(epptr);
                 assert!(queue.head != 0);
                 let dest = queue.head as *mut tcb_t;
@@ -127,9 +129,11 @@ pub fn sendIPC(
 pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
     unsafe {
         let epptr = cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t;
+        println!(" epptr:{}",endpoint_ptr_get_state(epptr));
         match endpoint_ptr_get_state(epptr) {
             EPState_Idle | EPState_Recv => {
                 if isBlocking {
+                    println!("waiting in receiveIPC ");
                     thread_state_set_tsType(
                         (*thread).tcbState as *mut thread_state_t,
                         ThreadStateBlockedOnReceive,
@@ -147,6 +151,7 @@ pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
                     let mut queue = ep_ptr_get_queue(epptr);
                     queue = tcbEPAppend(thread, queue);
                     endpoint_ptr_set_state(epptr as *mut endpoint_t, EPState_Recv);
+                    println!(" epptr:{}",endpoint_ptr_get_state(epptr));
                     ep_ptr_set_queue(epptr, queue);
                 } else {
                     doNBRecvFailedTransfer(thread);
@@ -154,10 +159,11 @@ pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
             }
             EPState_Send => {
                 let mut queue = ep_ptr_get_queue(epptr);
+                println!("executing in receiveIPC ");
                 assert!(queue.head != 0);
                 let sender = queue.head as *mut tcb_t;
                 queue = tcbEPDequeue(sender, queue);
-
+                // println!("sender:{:#x}",sender as usize);
                 if queue.head == 0 {
                     endpoint_ptr_set_state(epptr as *mut endpoint_t, EPState_Idle);
                 }
@@ -218,7 +224,7 @@ pub fn cancelIPC(tptr: *const tcb_t) {
                 if queue.head == 0 {
                     endpoint_ptr_set_state(epptr, EPState_Idle);
                 }
-                setThreadState(tptr, ThreadStateInactive);
+                setThreadState(tptr as *mut tcb_t, ThreadStateInactive);
             }
             //FIXME:: ThreadStateBlockedONReply not implemented
             _ => {
@@ -242,7 +248,7 @@ pub fn cancelAllIPC(epptr: *const endpoint_t) {
                 endpoint_ptr_set_epQueue_tail(epptr as *mut endpoint_t, 0);
                 while thread != 0 {
                     let ptr = thread as *const tcb_t;
-                    setThreadState(ptr, ThreadStateRestart);
+                    setThreadState(ptr as *mut tcb_t, ThreadStateRestart);
                     tcbSchedEnqueue(ptr as *mut tcb_t);
                     thread = (*ptr).tcbEPNext;
                 }
@@ -268,7 +274,7 @@ pub fn cancelBadgedSends(epptr: *mut endpoint_t, badge: usize) {
                     let b = thread_state_get_blockingIPCBadge((*ptr).tcbState);
 
                     if b == badge {
-                        setThreadState(ptr, ThreadStateRestart);
+                        setThreadState(ptr as *mut tcb_t, ThreadStateRestart);
                         tcbSchedEnqueue(ptr as *mut tcb_t);
                         queue = tcbEPDequeue(ptr as *mut tcb_t, queue);
                     }

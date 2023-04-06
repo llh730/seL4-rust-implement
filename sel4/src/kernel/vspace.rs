@@ -632,7 +632,8 @@ pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> usize {
         if vm_rights == VMReadWrite || (!isReceiver && vm_rights == VMReadOnly) {
             let basePtr = cap_frame_cap_get_capFBasePtr(bufferCap);
             let pageBits = pageBitsForSize(cap_frame_cap_get_capFSize(bufferCap));
-            return basePtr + w_bufferPtr & MASK!(pageBits);
+            println!("basePtr :{:#x} , w_bufferPtr :{:#x} , pageBits :{:#x}",basePtr,w_bufferPtr,pageBits);
+            return basePtr + (w_bufferPtr & MASK!(pageBits));
         }
         0
     }
@@ -689,7 +690,7 @@ pub fn decodeRISCVPageTableInvocation(
                 }
             }
             unsafe {
-                setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+                setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
             }
             performPageTableInvocationUnmap(cap, cte)
         }
@@ -739,7 +740,7 @@ pub fn decodeRISCVPageTableInvocation(
             cap_page_table_cap_set_capPTIsMapped(cap, 1);
             cap_page_table_cap_set_capPTMappedASID(cap, asid);
             cap_page_table_cap_set_capPTMappedAddress(cap, vaddr & !MASK!(lu_ret.ptBitsLeft));
-            setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
             performPageTableInvocationMap(cap, cte as *mut cte_t, pte, ptSlot)
         },
         _ => panic!("unknown label in PageTableInvocation:{}", label),
@@ -837,7 +838,7 @@ pub fn decodeRISCVFrameInvocation(
             cap_frame_cap_set_capFMappedAddress(cap, vaddr);
             let executable = vm_attributes_get_riscvExecuteNever(attr) != 0;
             let pte = makeUserPTE(frame_paddr, executable, w_rightsMask);
-            setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
             performPageTableInvocationMapPTE(
                 cap,
                 cte as *mut cte_t,
@@ -847,17 +848,17 @@ pub fn decodeRISCVFrameInvocation(
         },
         RISCVPageUnmap => {
             unsafe {
-                setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+                setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
             }
             perfomrPageInvocationUnmap(cap, cte as *mut cte_t)
         }
         RISCVPageGetAddress => {
             unsafe {
-                setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+                setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
             }
             performPageGetAddress(cap_frame_cap_get_capFBasePtr(cap), call)
         }
-        _ => panic!("invalid label:{}", label),
+        _ => panic!("invalid operation label:{}", label),
     }
 }
 

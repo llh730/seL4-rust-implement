@@ -437,7 +437,7 @@ pub fn decodeInvocation(
 ) -> exception_t {
     match cap_get_capType(cap) {
         cap_endpoint_cap => unsafe {
-            setThreadState(ksCurThread as *const tcb_t, ThreadStateRestart);
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
             let canGrant = if cap_endpoint_cap_get_capCanGrant(cap) != 0 {
                 true
             } else {
@@ -464,5 +464,24 @@ pub fn decodeInvocation(
             panic!("attempt to invoke a null cap");
         }
         _ => panic!("Invalid cap :{}", cap_get_capType(cap)),
+    }
+}
+
+pub fn updateCapData(preserve: bool, newData: usize, cap: *const cap_t) -> *const cap_t {
+    match cap_get_capType(cap) {
+        cap_endpoint_cap => {
+            if !preserve && cap_endpoint_cap_get_capEPBadge(cap) == 0 {
+                cap_endpoint_cap_set_capEPBadge(cap, newData);
+                cap
+            } else {
+                cap_null_cap_new()
+            }
+        }
+        cap_cnode_cap => {
+            //FIXEME updateCapDate not implemented.
+            panic!("updateCapData not supports cnode cap for now");
+            // let guardSize=
+        }
+        _ => panic!("invalid cap:{}", cap_get_capType(cap)),
     }
 }

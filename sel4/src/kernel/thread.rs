@@ -54,6 +54,7 @@ pub struct tcb_t {
     pub tcbLookupFailure: usize,
     pub domain: usize,
     pub tcbMCP: usize,
+    pub tcbBoundNotification:usize,
     pub tcbPriority: usize,
     pub tcbTimeSlice: usize,
     pub tcbFaultHandler: usize,
@@ -74,6 +75,7 @@ impl tcb_t {
             (*tcb).tcbLookupFailure = 0;
             (*tcb).domain = 0;
             (*tcb).tcbMCP = 0;
+            (*tcb).tcbBoundNotification=0;
             (*tcb).tcbPriority = 0;
             (*tcb).tcbTimeSlice = 0;
             (*tcb).tcbFaultHandler = 0;
@@ -282,7 +284,7 @@ pub fn removeFromBitmap(dom: usize, prio: usize) {
         let l1index = prio_to_l1index(prio);
         let l1index_inverted = invert_l1index(l1index);
         // println!("before remove bitmap:{} ,prio:{}", ksReadyQueuesL1Bitmap[dom], prio);
-        ksReadyQueuesL2Bitmap[dom][l1index_inverted] &=! BIT!(prio&MASK!(wordRadix));
+        ksReadyQueuesL2Bitmap[dom][l1index_inverted] &= !BIT!(prio & MASK!(wordRadix));
         if ksReadyQueuesL2Bitmap[dom][l1index_inverted] == 0 {
             ksReadyQueuesL1Bitmap[dom] &= !(BIT!((l1index)));
         }
@@ -290,21 +292,20 @@ pub fn removeFromBitmap(dom: usize, prio: usize) {
     }
 }
 
-
-pub fn setMR(receiver:*const tcb_t,receivedBuffer: usize,offset:usize,reg:usize)->usize{
-    if offset>=n_msgRegisters{
-        if receivedBuffer!=0{
-            let ptr= (receivedBuffer+(offset+1)*8) as *mut usize;
-            unsafe{
-                *ptr=reg;
+pub fn setMR(receiver: *const tcb_t, receivedBuffer: usize, offset: usize, reg: usize) -> usize {
+    if offset >= n_msgRegisters {
+        if receivedBuffer != 0 {
+            let ptr = (receivedBuffer + (offset + 1) * 8) as *mut usize;
+            unsafe {
+                *ptr = reg;
             }
-            return offset+1;
+            return offset + 1;
         } else {
             return n_msgRegisters;
         }
     } else {
-        setRegister(receiver as *mut tcb_t, getMsgRegisterNumber(offset) , reg);
-        return offset+1;
+        setRegister(receiver as *mut tcb_t, getMsgRegisterNumber(offset), reg);
+        return offset + 1;
     }
 }
 pub fn tcbSchedEnqueue(_tcb: *mut tcb_t) {
@@ -333,7 +334,6 @@ pub fn tcbSchedEnqueue(_tcb: *mut tcb_t) {
             (*_tcb).tcbSchedNext = 0;
             queue.tail = tcb as *const tcb_t as usize;
             ksReadyQueues[idx] = queue;
-            
 
             thread_state_set_tcbQueued(tcb.tcbState as *mut thread_state_t, 1);
         }
@@ -461,7 +461,7 @@ pub fn Arch_switchToIdleThread() {
     }
 }
 
-pub fn setThreadState(tptr: *const tcb_t, ts: usize) {
+pub fn setThreadState(tptr: *mut tcb_t, ts: usize) {
     unsafe {
         thread_state_set_tsType((*tptr).tcbState as *mut thread_state_t, ts);
         scheduleTCB(tptr);
@@ -478,7 +478,7 @@ pub fn setNextPC(thread: *mut tcb_t, v: usize) {
 
 pub fn configureIdleThread(tcb: *const tcb_t) {
     Arch_configureIdleThread(tcb);
-    setThreadState(tcb, ThreadStateIdleThreadState);
+    setThreadState(tcb as *mut tcb_t, ThreadStateIdleThreadState);
 }
 
 pub fn activateThread() {
@@ -488,15 +488,18 @@ pub fn activateThread() {
         match thread_state_get_tsType((*thread).tcbState as *const thread_state_t) {
             ThreadStateRunning => {
                 Arch_switchToThread(thread);
-            },
+            }
             ThreadStateRestart => {
                 let pc = getReStartPC(thread as *const tcb_t);
                 setNextPC(thread, pc);
-                setThreadState(thread as *const tcb_t, ThreadStateRunning);
+                setThreadState(thread as *mut tcb_t, ThreadStateRunning);
                 Arch_switchToThread(thread);
             }
             ThreadStateIdleThreadState => return,
-            _ => panic!("current thread is blocked , state id :{}",thread_state_get_tsType((*thread).tcbState as *const thread_state_t)),
+            _ => panic!(
+                "current thread is blocked , state id :{}",
+                thread_state_get_tsType((*thread).tcbState as *const thread_state_t)
+            ),
         }
     }
 }
@@ -508,7 +511,7 @@ pub fn updateReStartPC(tcb: *mut tcb_t) {
 
 pub fn suspend(target: *mut tcb_t) {
     //FIXME::implement cancelIPC;
-    // canceIPC(target);
+    cancelIPC(target);
     unsafe {
         if thread_state_get_tsType((*target).tcbState) == ThreadStateRunning {
             updateReStartPC(target);
@@ -567,7 +570,10 @@ pub fn chooseThread() {
             let thread = _thread as *const tcb_t;
             switchToThread(thread);
         } else {
-            println!("[kernel] all applications finished! turn to shutdown");
+            // println!("[kernel] all applications finished! turn to shutdown");
+            while true {
+                asm!("wfi");
+            }
             shutdown();
         }
     }
@@ -656,14 +662,12 @@ pub fn schedule() {
                 let fastfail = ksCurThread == ksIdleThread
                     || (*candidate).tcbPriority < (*(ksCurThread as *const tcb_t)).tcbPriority;
                 if fastfail && !isHighestPrio(ksCurDomain, (*candidate).tcbPriority) {
-                    println!("in fast fail");
                     tcbSchedEnqueue(candidate as *mut tcb_t);
                     ksSchedulerAction = SchedulerAction_ChooseNewThread;
                     scheduleChooseNewThread();
                 } else if was_runnable
                     && (*candidate).tcbPriority == (*(ksCurThread as *const tcb_t)).tcbPriority
                 {
-                    println!("in else if");
                     tcbSchedAppend(candidate as *mut tcb_t);
                     ksSchedulerAction = SchedulerAction_ChooseNewThread;
                     scheduleChooseNewThread();
@@ -685,6 +689,7 @@ pub fn doIPCTransfer(
 ) {
     let receiveBuffer = lookupIPCBuffer(true, receiver);
     let sendBuffer = lookupIPCBuffer(false, sender);
+    // println!("receiver :{:#x} , sendBuffer:{:#x}",receiveBuffer,sendBuffer);
     doNormalTransfer(
         sender,
         sendBuffer,
@@ -705,9 +710,8 @@ pub fn doNormalTransfer(
     receivedBuffer: usize,
 ) {
     let mut tag = messageInfoFromWord(getRegister(sender, msgInfoRegister));
-
     if canGrant {
-        let status = lookupExtraCaps(sender, sendBuffer, &tag);
+        lookupExtraCaps(sender, sendBuffer, &tag);
     }
     let msgTransferred = copyMRs(
         sender,
@@ -839,10 +843,9 @@ pub fn transferCaps(
             0,
         );
 
-        if current_extra_caps.excaprefs[0] as usize == 0 && receivedBuffer == 0 {
+        if current_extra_caps.excaprefs[0] as usize == 0 || receivedBuffer == 0 {
             return info;
         }
-
         let mut destSlot = getReceiveSlots(receiver, receivedBuffer);
         let mut i = 0;
         while i < seL4_MsgMaxExtraCaps && current_extra_caps.excaprefs[i] as usize != 0 {

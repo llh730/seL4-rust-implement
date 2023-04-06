@@ -50,7 +50,7 @@ pub fn sys_exit(exit_code: i32) -> isize {
     unsafe {
         tcbSchedDequeue(ksCurThread as *const tcb_t);
         ksSchedulerAction = SchedulerAction_ChooseNewThread;
-        setThreadState(ksCurThread as *const tcb_t, ThreadStateExited);
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateExited);
     }
     rescheduleRequired();
     schedule();
@@ -81,34 +81,55 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     0
 }
 
-pub fn sys_send() -> isize {
-    unsafe {
-        let thread = ksCurThread as *const tcb_t;
-        let info = messageInfoFromWord(getRegister(thread, msgInfoRegister));
-        let cptr = getRegister(thread, capRegister);
 
-        let lu_ret = lookupCapAndSlot(thread, cptr);
-
-        let buffer = lookupIPCBuffer(false, thread as *mut tcb_t);
-        let mut status = lookupExtraCaps(thread as *mut tcb_t, buffer, &info);
-
-        let length = seL4_MessageInfo_ptr_get_length((&info) as *const seL4_MessageInfo_t);
-
-        status = decodeInvocation(
-            seL4_MessageInfo_ptr_get_label((&info) as *const seL4_MessageInfo_t),
-            length,
-            cptr,
-            lu_ret.slot,
-            lu_ret.cap,
-            true,
-            false,
-            buffer,
-        );
-    }
+pub fn sys_send()->isize{
+    handleInvocation(false, true);
+    rescheduleRequired();
+    schedule();
+    activateThread();
     0
 }
 
-pub fn handleRecv(isBlocking: bool) {
+pub fn sys_recv()->isize{
+    handleRecv(true);
+    rescheduleRequired();
+    schedule();
+    activateThread();
+    0
+}
+
+pub fn handleInvocation(isCall: bool, isBlocking: bool) -> isize {
+    let thread: *const tcb_t;
+    unsafe {
+        thread = ksCurThread as *const tcb_t;
+    }
+    let info = messageInfoFromWord(getRegister(thread, msgInfoRegister));
+    let cptr = getRegister(thread, capRegister);
+
+    let lu_ret = lookupCapAndSlot(thread, cptr);
+
+    let buffer = lookupIPCBuffer(false, thread as *mut tcb_t);
+    let mut status = lookupExtraCaps(thread as *mut tcb_t, buffer, &info);
+
+    let mut length = seL4_MessageInfo_ptr_get_length((&info) as *const seL4_MessageInfo_t);
+    if length > n_msgRegisters && buffer == 0 {
+        length = n_msgRegisters;
+    }
+    status = decodeInvocation(
+        seL4_MessageInfo_ptr_get_label((&info) as *const seL4_MessageInfo_t),
+        length,
+        cptr,
+        lu_ret.slot,
+        lu_ret.cap,
+        isBlocking,
+        isCall,
+        buffer,
+    );
+    0
+}
+
+
+pub fn handleRecv(isBlocking: bool) -> isize {
     unsafe {
         let epCPtr = getRegister(ksCurThread as *const tcb_t, capRegister);
         let lu_ret = lookupCap(ksCurThread as *const tcb_t, epCPtr);
@@ -119,6 +140,7 @@ pub fn handleRecv(isBlocking: bool) {
             _ => panic!("unknown cap:{}", cap_get_capType(lu_ret.cap)),
         }
     }
+    0
 }
 
 #[inline]
