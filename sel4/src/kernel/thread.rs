@@ -1,11 +1,10 @@
 extern crate alloc;
 use crate::{
     config::{
-        ksDomScheduleLength, msgInfoRegister, n_msgRegisters, seL4_MsgMaxExtraCaps,
-        seL4_MsgMaxLength, tcbCNodeEntries, tcbCaller, tcbReply, wordBits,
-        SchedulerAction_ChooseNewThread, SchedulerAction_ResumeCurrentThread,
-        CONFIG_KERNEL_STACK_BITS, CONFIG_NUM_DOMAINS, CONFIG_NUM_PRIORITIES, L2_BITMAP_SIZE,
-        NUM_READY_QUEUES, SSTATUS_SPIE, SSTATUS_SPP,
+        msgInfoRegister, n_msgRegisters, seL4_MsgMaxExtraCaps, seL4_MsgMaxLength, tcbCNodeEntries,
+        tcbCaller, tcbReply, wordBits, SchedulerAction_ChooseNewThread,
+        SchedulerAction_ResumeCurrentThread, CONFIG_NUM_DOMAINS, CONFIG_NUM_PRIORITIES,
+        L2_BITMAP_SIZE, NUM_READY_QUEUES, SSTATUS_SPIE, SSTATUS_SPP,
     },
     elfloader::KERNEL_STACK,
     kernel::object::objecttype::cap_reply_cap,
@@ -29,7 +28,7 @@ use super::{
             seL4_MessageInfo_ptr_set_extraCaps, seL4_MessageInfo_ptr_set_length,
             seL4_MessageInfo_t,
         },
-        objecttype::{cap_endpoint_cap, cap_null_cap, deriveCap, deriveCap_ret},
+        objecttype::{cap_endpoint_cap, cap_null_cap, deriveCap},
         structures::*,
     },
     vspace::{lookupIPCBuffer, setVMRoot},
@@ -54,7 +53,7 @@ pub struct tcb_t {
     pub tcbLookupFailure: usize,
     pub domain: usize,
     pub tcbMCP: usize,
-    pub tcbBoundNotification:usize,
+    pub tcbBoundNotification: usize,
     pub tcbPriority: usize,
     pub tcbTimeSlice: usize,
     pub tcbFaultHandler: usize,
@@ -75,7 +74,7 @@ impl tcb_t {
             (*tcb).tcbLookupFailure = 0;
             (*tcb).domain = 0;
             (*tcb).tcbMCP = 0;
-            (*tcb).tcbBoundNotification=0;
+            (*tcb).tcbBoundNotification = 0;
             (*tcb).tcbPriority = 0;
             (*tcb).tcbTimeSlice = 0;
             (*tcb).tcbFaultHandler = 0;
@@ -571,9 +570,10 @@ pub fn chooseThread() {
             switchToThread(thread);
         } else {
             // println!("[kernel] all applications finished! turn to shutdown");
-            while true {
-                asm!("wfi");
-            }
+            println!("in idle thread ,waiting for interrupt");
+            // while true {
+            //     asm!("wfi");
+            // }
             shutdown();
         }
     }
@@ -713,6 +713,10 @@ pub fn doNormalTransfer(
     if canGrant {
         lookupExtraCaps(sender, sendBuffer, &tag);
     }
+    println!(
+        "len:{}",
+        seL4_MessageInfo_ptr_get_length((&tag) as *const seL4_MessageInfo_t)
+    );
     let msgTransferred = copyMRs(
         sender,
         sendBuffer,
@@ -768,15 +772,22 @@ pub fn copyMRs(
         i += 1;
     }
 
-    if recvBuf == 0 && sendBuf == 0 {
+    if recvBuf == 0 || sendBuf == 0 {
         return i;
     }
     while i < n {
         unsafe {
-            let recvPtr = (recvBuf + i + 1) as *const usize as *mut usize;
-            let sendPtr = (sendBuf + i + 1) as *const usize as *mut usize;
+            let recvPtr = (recvBuf + (i - 4)) as *mut u8;
+            let sendPtr = (sendBuf + (i - 4)) as *const u8;
             *recvPtr = *sendPtr;
+            println!("recvPtr :{:#x} sendPtr :{:#x}", *recvPtr, *sendPtr);
+            i += 1;
         }
+    }
+    unsafe {
+        let msg = String::from_raw_parts(sendBuf as *mut u8, 4, 4);
+        println!("sendBuf :{:#x}", *((sendBuf + 1) as *mut u8));
+        println!("receive message1:{}", msg);
     }
     i
 }

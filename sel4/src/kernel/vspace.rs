@@ -3,7 +3,7 @@ use core::mem;
 use riscv::register::satp;
 
 use crate::syscall::process::getSyscallArg;
-use crate::{config::*, println, BIT, MASK, ROUND_DOWN};
+use crate::{config::*,BIT, MASK, ROUND_DOWN};
 
 use super::boot::{
     clearMemory, current_extra_caps, get_n_paging, it_alloc_paging, p_region_t, provide_cap,
@@ -368,7 +368,7 @@ pub fn lookupPTSlot(lvl1pt: usize, vptr: vptr_t) -> lookupPTSlot_ret_t {
     ret
 }
 
-pub fn create_unmapped_it_frame_cap(pptr: pptr_t, use_large: bool) -> *const cap_t {
+pub fn create_unmapped_it_frame_cap(pptr: pptr_t, _use_large: bool) -> *const cap_t {
     cap_frame_cap_new(0, pptr, 0, 0, 0, 0)
 }
 
@@ -632,7 +632,6 @@ pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> usize {
         if vm_rights == VMReadWrite || (!isReceiver && vm_rights == VMReadOnly) {
             let basePtr = cap_frame_cap_get_capFBasePtr(bufferCap);
             let pageBits = pageBitsForSize(cap_frame_cap_get_capFSize(bufferCap));
-            println!("basePtr :{:#x} , w_bufferPtr :{:#x} , pageBits :{:#x}",basePtr,w_bufferPtr,pageBits);
             return basePtr + (w_bufferPtr & MASK!(pageBits));
         }
         0
@@ -794,7 +793,7 @@ pub fn decodeRISCVFrameInvocation(
             let attr = vmAttributesFromWord(getSyscallArg(2, buffer as usize));
             let lvl1ptCap = (*current_extra_caps.excaprefs[0]).cap;
             let frameSize = cap_frame_cap_get_capFSize(cap);
-            let capVMRights = cap_frame_cap_get_capFVMRights(cap);
+            // let capVMRights = cap_frame_cap_get_capFVMRights(cap);
             if cap_get_capType(lvl1ptCap) != cap_page_table_cap
                 || !cap_page_table_cap_get_capPTIsMapped(lvl1ptCap) != 0
             {

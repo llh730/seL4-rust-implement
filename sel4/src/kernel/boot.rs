@@ -16,12 +16,12 @@ use crate::{
     kernel::{
         object::{
             cap::insertNewCap,
-            structures::{cap_null_cap_new, mdb_node_new, thread_state_new, cap_cnode_cap_set_capCNodeGuard},
+            structures::{cap_null_cap_new, mdb_node_new, thread_state_new},
         },
         thread::configureIdleThread,
         vspace::create_address_space_alloced,
     },
-    println, traps, BIT, ROUND_DOWN, ROUND_UP, MASK,
+    println, traps, BIT, ROUND_DOWN, ROUND_UP, 
 };
 
 use super::{
@@ -672,6 +672,7 @@ pub fn create_thread(
         vspace_ptr as usize,
     );
     let ipc_buf = get_app_phys_addr(app_id).end - PAGE_SIZE;
+   
     let ipcbuf_cap = create_ipcbuf_frame_cap(cap, it_pd_cap, ipcbuf_vptr, ipc_buf);
     let thread_size = size_of::<tcb_t>();
     let thread_layout = Layout::from_size_align(thread_size, 4).ok().unwrap();
@@ -680,6 +681,7 @@ pub fn create_thread(
         thread_ptr = alloc::alloc::alloc(thread_layout) as usize;
     }
     println!("create tcb start :{:#x},end:{:#x}",thread_ptr as usize , thread_ptr as usize +thread_size);
+    println!("ipc_buf at :{:#x}",ipcbuf_vptr);
     let thread = create_initial_thread(
         thread_ptr,
         cap,

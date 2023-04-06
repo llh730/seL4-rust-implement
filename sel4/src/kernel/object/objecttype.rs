@@ -426,14 +426,14 @@ pub fn deriveCap(slot: *const cte_t, cap: *const cap_t) -> deriveCap_ret {
 }
 
 pub fn decodeInvocation(
-    invLabel: usize,
-    length: usize,
-    capIndex: usize,
-    slot: *const cte_t,
+    _invLabel: usize,
+    _length: usize,
+    _capIndex: usize,
+    _slot: *const cte_t,
     cap: *const cap_t,
     block: bool,
     call: bool,
-    buffer: usize,
+    _buffer: usize,
 ) -> exception_t {
     match cap_get_capType(cap) {
         cap_endpoint_cap => unsafe {

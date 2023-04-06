@@ -129,7 +129,6 @@ pub fn sendIPC(
 pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
     unsafe {
         let epptr = cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t;
-        println!(" epptr:{}",endpoint_ptr_get_state(epptr));
         match endpoint_ptr_get_state(epptr) {
             EPState_Idle | EPState_Recv => {
                 if isBlocking {
@@ -151,7 +150,6 @@ pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
                     let mut queue = ep_ptr_get_queue(epptr);
                     queue = tcbEPAppend(thread, queue);
                     endpoint_ptr_set_state(epptr as *mut endpoint_t, EPState_Recv);
-                    println!(" epptr:{}",endpoint_ptr_get_state(epptr));
                     ep_ptr_set_queue(epptr, queue);
                 } else {
                     doNBRecvFailedTransfer(thread);
@@ -163,7 +161,6 @@ pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
                 assert!(queue.head != 0);
                 let sender = queue.head as *mut tcb_t;
                 queue = tcbEPDequeue(sender, queue);
-                // println!("sender:{:#x}",sender as usize);
                 if queue.head == 0 {
                     endpoint_ptr_set_state(epptr as *mut endpoint_t, EPState_Idle);
                 }

@@ -1,19 +1,15 @@
 use crate::config::{msgInfoRegister, n_msgRegisters, SchedulerAction_ChooseNewThread};
 use crate::kernel::object::cspace::{lookupCap, lookupCapAndSlot};
-use crate::kernel::object::endpoint::{performInvocation_Endpoint, receiveIPC};
+use crate::kernel::object::endpoint::receiveIPC;
 use crate::kernel::object::msg::{
     seL4_MessageInfo_ptr_get_label, seL4_MessageInfo_ptr_get_length, seL4_MessageInfo_t,
 };
 use crate::kernel::object::objecttype::{cap_endpoint_cap, decodeInvocation};
-use crate::kernel::object::structures::{
-    cap_endpoint_cap_get_capCanGrant, cap_endpoint_cap_get_capCanGrantReply,
-    cap_endpoint_cap_get_capEPBadge, cap_endpoint_cap_get_capEPPtr, cap_get_capType, cap_t, cte_t,
-    endpoint_t, exception_t,
-};
+use crate::kernel::object::structures::cap_get_capType;
 use crate::kernel::thread::{
     activateThread, capRegister, getMsgRegisterNumber, getRegister, ksCurThread, ksSchedulerAction,
     lookupExtraCaps, messageInfoFromWord, rescheduleRequired, schedule, setThreadState,
-    tcbSchedDequeue, tcbSchedEnqueue, tcb_t, ThreadStateExited, ThreadStateRestart,
+    tcbSchedDequeue, tcbSchedEnqueue, tcb_t, ThreadStateExited,
 };
 use crate::kernel::vspace::lookupIPCBuffer;
 use crate::println;
@@ -81,8 +77,7 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     0
 }
 
-
-pub fn sys_send()->isize{
+pub fn sys_send() -> isize {
     handleInvocation(false, true);
     rescheduleRequired();
     schedule();
@@ -90,7 +85,7 @@ pub fn sys_send()->isize{
     0
 }
 
-pub fn sys_recv()->isize{
+pub fn sys_recv() -> isize {
     handleRecv(true);
     rescheduleRequired();
     schedule();
@@ -127,7 +122,6 @@ pub fn handleInvocation(isCall: bool, isBlocking: bool) -> isize {
     );
     0
 }
-
 
 pub fn handleRecv(isBlocking: bool) -> isize {
     unsafe {

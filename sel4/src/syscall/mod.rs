@@ -9,12 +9,10 @@ const SYSCALL_RECV: usize = usize::MAX - 5;
 pub mod fs;
 pub mod process;
 
-use core::arch::asm;
 
 use fs::*;
 use process::*;
 
-use crate::println;
 
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
     // record_syscall_times(syscall_id);

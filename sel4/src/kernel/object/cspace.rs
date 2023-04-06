@@ -3,10 +3,10 @@ extern crate alloc;
 use crate::config::{tcbCTable, wordBits};
 use crate::kernel::object::{objecttype::*, structures::*};
 use crate::kernel::thread::tcb_t;
-use crate::{BIT, MASK};
+use crate::MASK;
 use core::default::Default;
 use core::intrinsics::likely;
-use core::{cell::RefCell, intrinsics::unlikely};
+use core::intrinsics::unlikely;
 
 use super::structures::{cap_t, cte_t, exception_t};
 
@@ -154,7 +154,10 @@ pub fn resolveAddressBits(
             guard = (capptr >> ((n_bits - guardBits) & MASK!(wordRadix))) & MASK!(guardBits);
 
             if unlikely(guardBits > n_bits || guard != capGuard) {
-                panic!("guardBits and cap Guard bits not matched ! guard :{:#x}  capGuard :{:#x}",guard,capGuard);
+                panic!(
+                    "guardBits and cap Guard bits not matched ! guard :{:#x}  capGuard :{:#x}",
+                    guard, capGuard
+                );
             }
 
             if unlikely(levelBits > n_bits) {
@@ -241,7 +244,7 @@ pub fn lookupCap(thread: *const tcb_t, cPtr: usize) -> lookupCap_ret_t {
 }
 
 pub fn lookupSlotForCNodeOp(
-    isSource: bool,
+    _isSource: bool,
     root: *const cap_t,
     capptr: usize,
     depth: usize,

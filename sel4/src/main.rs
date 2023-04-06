@@ -6,6 +6,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
 #![allow(while_true)]
+#![allow(unused_assignments)]
 #![feature(alloc_error_handler)]
 #![feature(panic_info_message)]
 #![feature(stdsimd)]
