@@ -3,7 +3,7 @@ use core::mem;
 use riscv::register::satp;
 
 use crate::syscall::process::getSyscallArg;
-use crate::{config::*,BIT, MASK, ROUND_DOWN};
+use crate::{config::*,BIT, MASK, ROUND_DOWN, println};
 
 use super::boot::{
     clearMemory, current_extra_caps, get_n_paging, it_alloc_paging, p_region_t, provide_cap,

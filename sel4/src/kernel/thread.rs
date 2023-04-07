@@ -689,7 +689,6 @@ pub fn doIPCTransfer(
 ) {
     let receiveBuffer = lookupIPCBuffer(true, receiver);
     let sendBuffer = lookupIPCBuffer(false, sender);
-    // println!("receiver :{:#x} , sendBuffer:{:#x}",receiveBuffer,sendBuffer);
     doNormalTransfer(
         sender,
         sendBuffer,
@@ -711,12 +710,9 @@ pub fn doNormalTransfer(
 ) {
     let mut tag = messageInfoFromWord(getRegister(sender, msgInfoRegister));
     if canGrant {
+        println!("in lookupExtraCaps");
         lookupExtraCaps(sender, sendBuffer, &tag);
     }
-    println!(
-        "len:{}",
-        seL4_MessageInfo_ptr_get_length((&tag) as *const seL4_MessageInfo_t)
-    );
     let msgTransferred = copyMRs(
         sender,
         sendBuffer,
@@ -771,24 +767,31 @@ pub fn copyMRs(
         );
         i += 1;
     }
-
+    // unsafe {
+    //     let msg1 = String::from_raw_parts(0xc000a000 as *mut u8, 32, 32);
+    //     println!("receive message123:{}", msg1);
+    // }
+    
     if recvBuf == 0 || sendBuf == 0 {
         return i;
     }
+    // unsafe {
+    //     let msg1 = String::from_raw_parts(0xc000a000 as *mut u8, 32, 32);
+    //     println!("receive message123:{}", msg1);
+    // }
+    // println!("recvBuf :{:#x} , sendBuf :{:#x}", recvBuf,sendBuf);
     while i < n {
         unsafe {
             let recvPtr = (recvBuf + (i - 4)) as *mut u8;
             let sendPtr = (sendBuf + (i - 4)) as *const u8;
             *recvPtr = *sendPtr;
-            println!("recvPtr :{:#x} sendPtr :{:#x}", *recvPtr, *sendPtr);
             i += 1;
         }
     }
-    unsafe {
-        let msg = String::from_raw_parts(sendBuf as *mut u8, 4, 4);
-        println!("sendBuf :{:#x}", *((sendBuf + 1) as *mut u8));
-        println!("receive message1:{}", msg);
-    }
+    // unsafe {
+    //     let msg = String::from_raw_parts((0x8401e000) as *mut u8, 32, 32);
+    //     println!("receive message1:{}", msg);
+    // }
     i
 }
 
@@ -807,6 +810,7 @@ pub fn lookupExtraCaps(
             return exception_t::EXCEPTION_NONE;
         }
         let length = seL4_MessageInfo_ptr_get_extraCaps(info as *const seL4_MessageInfo_t);
+        println!("info :{} length :{}",info.words[0],length);
         let mut i = 0;
         while i < length {
             let cptr = getExtraCPtr(bufferPtr, i);
@@ -814,6 +818,7 @@ pub fn lookupExtraCaps(
             if lu_ret.status != exception_t::EXCEPTION_NONE {
                 panic!(" lookup slot error , found slot :{}", lu_ret.slot as usize);
             }
+            println!("excaprefs[{}]:{:#x}",i,lu_ret.slot as usize);
             current_extra_caps.excaprefs[i] = lu_ret.slot;
             i += 1;
         }
@@ -853,12 +858,12 @@ pub fn transferCaps(
             (&info) as *const seL4_MessageInfo_t as *mut seL4_MessageInfo_t,
             0,
         );
-
         if current_extra_caps.excaprefs[0] as usize == 0 || receivedBuffer == 0 {
             return info;
         }
         let mut destSlot = getReceiveSlots(receiver, receivedBuffer);
         let mut i = 0;
+        println!("current extra caps :{:#x}",current_extra_caps.excaprefs[0] as  usize);
         while i < seL4_MsgMaxExtraCaps && current_extra_caps.excaprefs[i] as usize != 0 {
             let slot = current_extra_caps.excaprefs[i];
             let cap = (*slot).cap;
@@ -881,7 +886,6 @@ pub fn transferCaps(
                 {
                     break;
                 }
-
                 cteInsert(dc_ret.cap, slot, destSlot);
                 destSlot = 0 as *const cte_t;
             }
@@ -891,6 +895,7 @@ pub fn transferCaps(
             (&info) as *const seL4_MessageInfo_t as *mut seL4_MessageInfo_t,
             i,
         );
+        println!("out here");
         return info;
     }
 }
@@ -900,20 +905,17 @@ pub fn getReceiveSlots(thread: *mut tcb_t, buffer: usize) -> *const cte_t {
         return 0 as *const cte_t;
     }
     let ct = loadCapTransfer(buffer);
+    println!("receiveindex:{:#x} , root :{:#x} , depth:{:#x}",ct.ctReceiveIndex,ct.ctReceiveRoot,ct.ctReceiveDepth);
     let cptr = ct.ctReceiveRoot;
     let luc_ret = lookupCap(thread, cptr);
     let cnode = luc_ret.cap;
     let lus_ret = lookupTargetSlot(cnode, ct.ctReceiveIndex, ct.ctReceiveDepth);
-    unsafe {
-        if cap_get_capType((*lus_ret.slot).cap) != cap_null_cap {
-            return 0 as *const cte_t;
-        }
-    }
     lus_ret.slot
 }
 
 pub fn loadCapTransfer(buffer: usize) -> cap_transfer_t {
     let offset = seL4_MsgMaxLength + 2 + seL4_MsgMaxExtraCaps;
+    println!("sel4 buffer :{:#x}",buffer + offset *8);
     return capTransferFromWords(buffer + offset * 8);
 }
 

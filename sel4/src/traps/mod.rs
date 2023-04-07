@@ -33,6 +33,7 @@ pub fn enable_timer_interrupt() {
 pub fn restore_user_context() {
     unsafe {
         let cur_thread_reg = (*(ksCurThread as *const tcb_t)).tcbArch.registers.as_ptr() as usize;
+        // println!("sepc:{:#x} ",(*(ksCurThread as *const tcb_t)).tcbArch.registers[34]);
         asm!("mv t0, {0}      \n",
         "ld  ra, (0*8)(t0)  \n",
         "ld  sp, (1*8)(t0)  \n",
@@ -81,9 +82,9 @@ pub fn trap_handler() {
         let scause = (*(ksCurThread as *const tcb_t)).tcbArch.registers[31];
         let sepc = (*(ksCurThread as *const tcb_t)).tcbArch.registers[33];
         let stval = stval::read();
-        // let register=&((*(ksCurThread as *const tcb_t)).tcbArch.registers);
+        let register=&((*(ksCurThread as *const tcb_t)).tcbArch.registers);
         // for i in 0..34{
-        //     println!("register[{}]:{:#x}",i,register[i]);
+            // println!("register[{}]:{:#x}",i,register[i]);
         // }
         match scause {
             RISCVEnvCall => {

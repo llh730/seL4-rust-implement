@@ -41,7 +41,7 @@ impl Default for mdb_node_t {
         mdb_node_t { words: [0; 2] }
     }
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq,Clone, Copy)]
 pub struct cte_t {
     pub cap: *mut cap_t,
     pub cteMDBNode: *mut mdb_node_t,

@@ -21,7 +21,7 @@ use crate::{
         thread::configureIdleThread,
         vspace::create_address_space_alloced,
     },
-    println, traps, BIT, ROUND_DOWN, ROUND_UP, 
+    println, traps, BIT, ROUND_DOWN, ROUND_UP,
 };
 
 use super::{
@@ -480,7 +480,7 @@ pub fn create_idle_thread() {
             tcbLookupFailure: 0,
             domain: 0,
             tcbMCP: 0,
-            tcbBoundNotification:0,
+            tcbBoundNotification: 0,
             tcbPriority: 0,
             tcbTimeSlice: 0,
             tcbFaultHandler: 0,
@@ -499,6 +499,7 @@ pub fn create_idle_thread() {
 }
 
 pub fn create_initial_thread(
+    appid: usize,
     thread: usize,
     root_cnode_cap: *const cap_t,
     it_pd_cap: *const cap_t,
@@ -506,7 +507,8 @@ pub fn create_initial_thread(
     ipcbuf_vptr: usize,
     ipcbuf_cap: *const cap_t,
     name: String,
-    ep: *mut endpoint_t,
+    ep1: *mut endpoint_t,
+    ep2: *mut endpoint_t,
 ) -> *const tcb_t {
     let tcb = thread as *mut tcb_t;
     let cte_total_size = size_of::<cte_t>() * tcbCNodeEntries;
@@ -543,6 +545,7 @@ pub fn create_initial_thread(
                 as *const cte_t,
             (*(thread as *const tcb_t)).rootCap[tcbCTable],
         );
+        println!("insert root_cnode_cap at :{:#x}",(cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadCNode * size_of::<cte_t>()));
         cteInsert(
             it_pd_cap,
             (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadVspace * size_of::<cte_t>())
@@ -555,20 +558,46 @@ pub fn create_initial_thread(
                 as *const cte_t,
             (*(thread as *const tcb_t)).rootCap[tcbBuffer],
         );
-        let ep_cap = cap_endpoint_cap_new(0, 0, 0, 1, 1, ep as usize);
-        insertNewCap(
-            (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * size_of::<cte_t>())
-                as *const cte_t,
-            (cap_get_capPtr(root_cnode_cap)
-                + (seL4_CapInitThreadIPCBuffer + 1) * size_of::<cte_t>())
-                as *const cte_t,
-            ep_cap,
-        );
-        println!(
-            "insert ep cap at:{:#x}",
-            cap_get_capPtr(root_cnode_cap) + (seL4_CapInitThreadIPCBuffer + 1) * size_of::<cte_t>()
-        );
+        if appid < 2 {
+            let ep_cap = cap_endpoint_cap_new(0, 0, 0, 1, 1, ep1 as usize);
+            insertNewCap(
+                (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * size_of::<cte_t>())
+                    as *const cte_t,
+                (cap_get_capPtr(root_cnode_cap)
+                    + (seL4_CapInitThreadIPCBuffer + 1) * size_of::<cte_t>())
+                    as *const cte_t,
+                ep_cap,
+            );
+            println!(
+                "insert ep1 cap at:{:#x} , ep1:{:#x} , cap:{:#x}",
+                cap_get_capPtr(root_cnode_cap)
+                    + (seL4_CapInitThreadIPCBuffer + 1) * size_of::<cte_t>(),
+                ep1 as usize,
+                ep_cap as usize
+            );
+        }
+        if appid >=1 {
+            let ep_cap = cap_endpoint_cap_new(0, 0, 0, 1, 1, ep2 as usize);
+            insertNewCap(
+                (cap_get_capPtr(root_cnode_cap) + seL4_CapInitThreadIPCBuffer * size_of::<cte_t>())
+                    as *const cte_t,
+                (cap_get_capPtr(root_cnode_cap)
+                    + (seL4_CapInitThreadIPCBuffer + 2) * size_of::<cte_t>())
+                    as *const cte_t,
+                ep_cap,
+            );
+            println!(
+                "insert ep2 cap at:{:#x} , ep2 :{:#x} , cap:{:#x}",
+                cap_get_capPtr(root_cnode_cap)
+                    + (seL4_CapInitThreadIPCBuffer + 2) * size_of::<cte_t>(),
+                ep2 as usize,
+                ep_cap as usize
+            );
+        }
+        println!("next valid slot :{:#x}",cap_get_capPtr(root_cnode_cap)
+        + (seL4_CapInitThreadIPCBuffer + 2) * size_of::<cte_t>());
     }
+    println!("ipc buf at :{:#x}",ipcbuf_vptr);
     unsafe {
         (*tcb).tcbIPCBuffer = ipcbuf_vptr;
         (*tcb).tcbPriority = 255;
@@ -624,7 +653,8 @@ pub fn create_thread(
     ipcbuf_vptr: usize,
     offset: usize,
     prio: usize,
-    ep: *mut endpoint_t,
+    ep1: *mut endpoint_t,
+    ep2: *mut endpoint_t,
 ) -> *const tcb_t {
     println!("[kernel] create thread for app :{}", app_id);
     let size = BIT!(CONFIG_ROOT_CNODE_SIZE_BITS) * size_of::<cte_t>();
@@ -633,11 +663,12 @@ pub fn create_thread(
     unsafe {
         ptr = alloc::alloc::alloc(layout);
     }
-    let guardSize=BIT!(6) - CONFIG_ROOT_CNODE_SIZE_BITS;
+    println!("create cnode at :{:#x}",ptr as usize);
+    let guardSize = BIT!(6) - CONFIG_ROOT_CNODE_SIZE_BITS;
     let cap = cap_cnode_cap_new(
         CONFIG_ROOT_CNODE_SIZE_BITS,
         guardSize,
-        ptr as usize>>CONFIG_ROOT_CNODE_SIZE_BITS,
+        ptr as usize >> CONFIG_ROOT_CNODE_SIZE_BITS,
         ptr as usize,
     );
     write_slot(
@@ -671,8 +702,8 @@ pub fn create_thread(
         paddr,
         vspace_ptr as usize,
     );
-    let ipc_buf = get_app_phys_addr(app_id).end - PAGE_SIZE;
-   
+    let ipc_buf = get_app_phys_addr(app_id).end - PAGE_SIZE * 2;
+
     let ipcbuf_cap = create_ipcbuf_frame_cap(cap, it_pd_cap, ipcbuf_vptr, ipc_buf);
     let thread_size = size_of::<tcb_t>();
     let thread_layout = Layout::from_size_align(thread_size, 4).ok().unwrap();
@@ -680,9 +711,13 @@ pub fn create_thread(
     unsafe {
         thread_ptr = alloc::alloc::alloc(thread_layout) as usize;
     }
-    println!("create tcb start :{:#x},end:{:#x}",thread_ptr as usize , thread_ptr as usize +thread_size);
-    println!("ipc_buf at :{:#x}",ipcbuf_vptr);
+    println!(
+        "create tcb start :{:#x},end:{:#x}",
+        thread_ptr as usize,
+        thread_ptr as usize + thread_size
+    );
     let thread = create_initial_thread(
+        app_id,
         thread_ptr,
         cap,
         it_pd_cap,
@@ -690,12 +725,13 @@ pub fn create_thread(
         ipcbuf_vptr,
         ipcbuf_cap,
         String::from("first thread"),
-        ep,
+        ep1,
+        ep2,
     );
     unsafe {
         (*(thread as *mut tcb_t)).tcbPriority = prio;
     }
-    setRegister(thread as *mut tcb_t, sp, it_v_reg.end - PAGE_SIZE - 8);
+    setRegister(thread as *mut tcb_t, sp, it_v_reg.end - PAGE_SIZE * 3 - 8);
     thread
 }
 
@@ -711,16 +747,23 @@ pub fn init_thread() {
     let num_app = get_num_app();
     let size = size_of::<endpoint_t>();
     let layout = Layout::from_size_align(size, 4).ok().unwrap();
-    let ep: *mut u8;
+    let ep1: *mut u8;
+    let ep2: *mut u8;
     unsafe {
-        ep = alloc::alloc::alloc(layout);
+        ep1 = alloc::alloc::alloc(layout);
+        ep2 = alloc::alloc::alloc(layout);
     }
     for i in 0..num_app {
-        from_elf(get_app_data(i), i, ep as *mut endpoint_t);
+        from_elf(
+            get_app_data(i),
+            i,
+            ep1 as *mut endpoint_t,
+            ep2 as *mut endpoint_t,
+        );
     }
 }
 
-pub fn from_elf(elf_data: &[u8], app_id: usize, ep: *mut endpoint_t) {
+pub fn from_elf(elf_data: &[u8], app_id: usize, ep1: *mut endpoint_t, ep2: *mut endpoint_t) {
     let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
     let elf_header = elf.header;
     let magic = elf_header.pt1.magic;
@@ -754,17 +797,18 @@ pub fn from_elf(elf_data: &[u8], app_id: usize, ep: *mut endpoint_t) {
     }
     let it_v_reg = v_region_t {
         start: start_va,
-        end: end_va + PAGE_SIZE + USER_STACK_SIZE + PAGE_SIZE,
+        end: end_va + PAGE_SIZE * 3 + USER_STACK_SIZE + PAGE_SIZE * 3,
     };
     if app_id == 0 {
         let thread = create_thread(
             app_id,
             it_v_reg,
             elf.header.pt2.entry_point() as usize,
-            it_v_reg.end - PAGE_SIZE,
+            it_v_reg.end - PAGE_SIZE * 2,
             offset,
             1,
-            ep,
+            ep1,
+            ep2,
         );
         init_core_state(thread);
     } else {
@@ -772,10 +816,11 @@ pub fn from_elf(elf_data: &[u8], app_id: usize, ep: *mut endpoint_t) {
             app_id,
             it_v_reg,
             elf.header.pt2.entry_point() as usize,
-            it_v_reg.end - PAGE_SIZE,
+            it_v_reg.end - PAGE_SIZE * 2,
             offset,
             2,
-            ep,
+            ep1,
+            ep2,
         );
         tcbSchedEnqueue(thread as *mut tcb_t);
     }

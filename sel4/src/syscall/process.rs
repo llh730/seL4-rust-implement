@@ -1,3 +1,5 @@
+use alloc::string::String;
+
 use crate::config::{msgInfoRegister, n_msgRegisters, SchedulerAction_ChooseNewThread};
 use crate::kernel::object::cspace::{lookupCap, lookupCapAndSlot};
 use crate::kernel::object::endpoint::receiveIPC;
@@ -79,7 +81,6 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
 pub fn sys_send() -> isize {
     handleInvocation(false, true);
-    rescheduleRequired();
     schedule();
     activateThread();
     0
@@ -87,7 +88,6 @@ pub fn sys_send() -> isize {
 
 pub fn sys_recv() -> isize {
     handleRecv(true);
-    rescheduleRequired();
     schedule();
     activateThread();
     0
@@ -110,6 +110,7 @@ pub fn handleInvocation(isCall: bool, isBlocking: bool) -> isize {
     if length > n_msgRegisters && buffer == 0 {
         length = n_msgRegisters;
     }
+    println!("slot:{:#x} cptr:{:#x},cap:{:#x}",lu_ret.slot as usize,cptr,lu_ret.cap as usize);
     status = decodeInvocation(
         seL4_MessageInfo_ptr_get_label((&info) as *const seL4_MessageInfo_t),
         length,
@@ -125,6 +126,10 @@ pub fn handleInvocation(isCall: bool, isBlocking: bool) -> isize {
 
 pub fn handleRecv(isBlocking: bool) -> isize {
     unsafe {
+        // unsafe {
+        //     let msg = String::from_raw_parts((0x8401f000) as *mut u8, 32, 32);
+        //     println!("receive message123:{}", msg);
+        // }
         let epCPtr = getRegister(ksCurThread as *const tcb_t, capRegister);
         let lu_ret = lookupCap(ksCurThread as *const tcb_t, epCPtr);
         match cap_get_capType(lu_ret.cap) {

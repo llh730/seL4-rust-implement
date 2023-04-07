@@ -3,7 +3,7 @@ extern crate alloc;
 use crate::config::{tcbCTable, wordBits};
 use crate::kernel::object::{objecttype::*, structures::*};
 use crate::kernel::thread::tcb_t;
-use crate::MASK;
+use crate::{MASK, println};
 use core::default::Default;
 use core::intrinsics::likely;
 use core::intrinsics::unlikely;
@@ -151,8 +151,8 @@ pub fn resolveAddressBits(
             levelBits = radixBits + guardBits;
             assert!(levelBits != 0);
             capGuard = cap_cnode_cap_get_capCNodeGuard(nodeCap);
+            println!("capptr:{:#x}",capptr);
             guard = (capptr >> ((n_bits - guardBits) & MASK!(wordRadix))) & MASK!(guardBits);
-
             if unlikely(guardBits > n_bits || guard != capGuard) {
                 panic!(
                     "guardBits and cap Guard bits not matched ! guard :{:#x}  capGuard :{:#x}",
@@ -165,14 +165,14 @@ pub fn resolveAddressBits(
                 return ret;
             }
             offset = (capptr >> (n_bits - levelBits)) & MASK!(radixBits);
+            println!("radixBits:{:#x} , capptr:{:#x} ,offset :{:#x}",radixBits,capptr,offset);
             slot = ((cap_cnode_cap_get_capCNodePtr(nodeCap)) + offset) as *mut cte_t;
-
             if likely(n_bits == levelBits) {
+                println!("slot:{:#x}",slot as usize);
                 ret.slot = slot;
                 ret.bitsRemaining = 0;
                 return ret;
             }
-
             n_bits -= levelBits;
             nodeCap = (*slot).cap;
             if unlikely(cap_get_capType(nodeCap) != cap_cnode_cap) {

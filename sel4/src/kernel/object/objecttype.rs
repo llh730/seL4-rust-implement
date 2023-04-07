@@ -1,5 +1,7 @@
 use core::{alloc::Layout, mem::size_of};
 
+use alloc::string::String;
+
 use crate::{
     config::{seL4_SlotBits, seL4_TCBBits, tcbCNodeEntries, RISCVMegaPageBits, RISCVPageBits},
     kernel::{
@@ -12,7 +14,7 @@ use crate::{
             RISCV_4K_Page, RISCV_Mega_Page, VMReadWrite,
         },
     },
-    MASK,
+    MASK, println,
 };
 extern crate alloc;
 
@@ -437,7 +439,8 @@ pub fn decodeInvocation(
 ) -> exception_t {
     match cap_get_capType(cap) {
         cap_endpoint_cap => unsafe {
-            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+            //FIXME::why restart???
+            // setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
             let canGrant = if cap_endpoint_cap_get_capCanGrant(cap) != 0 {
                 true
             } else {
@@ -448,6 +451,7 @@ pub fn decodeInvocation(
             } else {
                 false
             };
+            // println!("ep cap :{:#x}",cap )
             performInvocation_Endpoint(
                 cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t,
                 cap_endpoint_cap_get_capEPBadge(cap),

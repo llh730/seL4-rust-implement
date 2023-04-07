@@ -52,7 +52,7 @@ _num_app:
     .align 12
 app_{0}_start:
     .incbin "{2}{1}.elf"
-    .space 4096*4
+    .space 4096*8
 app_{0}_end:"#,
             idx, app, TARGET_PATH
         )?;
