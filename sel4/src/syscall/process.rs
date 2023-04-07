@@ -1,17 +1,18 @@
 use alloc::string::String;
 
 use crate::config::{msgInfoRegister, n_msgRegisters, SchedulerAction_ChooseNewThread};
+use crate::kernel::boot::current_extra_caps;
 use crate::kernel::object::cspace::{lookupCap, lookupCapAndSlot};
-use crate::kernel::object::endpoint::receiveIPC;
+use crate::kernel::object::endpoint::{self, receiveIPC};
 use crate::kernel::object::msg::{
     seL4_MessageInfo_ptr_get_label, seL4_MessageInfo_ptr_get_length, seL4_MessageInfo_t,
 };
 use crate::kernel::object::objecttype::{cap_endpoint_cap, decodeInvocation};
 use crate::kernel::object::structures::cap_get_capType;
 use crate::kernel::thread::{
-    activateThread, capRegister, getMsgRegisterNumber, getRegister, ksCurThread, ksSchedulerAction,
-    lookupExtraCaps, messageInfoFromWord, rescheduleRequired, schedule, setThreadState,
-    tcbSchedDequeue, tcbSchedEnqueue, tcb_t, ThreadStateExited,
+    activateThread, capRegister, getMsgRegisterNumber, getReStartPC, getRegister, ksCurThread,
+    ksSchedulerAction, lookupExtraCaps, messageInfoFromWord, rescheduleRequired, schedule,
+    setNextPC, setThreadState, tcbSchedDequeue, tcbSchedEnqueue, tcb_t, ThreadStateExited,
 };
 use crate::kernel::vspace::lookupIPCBuffer;
 use crate::println;
@@ -100,17 +101,25 @@ pub fn handleInvocation(isCall: bool, isBlocking: bool) -> isize {
     }
     let info = messageInfoFromWord(getRegister(thread, msgInfoRegister));
     let cptr = getRegister(thread, capRegister);
-
     let lu_ret = lookupCapAndSlot(thread, cptr);
 
     let buffer = lookupIPCBuffer(false, thread as *mut tcb_t);
     let mut status = lookupExtraCaps(thread as *mut tcb_t, buffer, &info);
-
     let mut length = seL4_MessageInfo_ptr_get_length((&info) as *const seL4_MessageInfo_t);
     if length > n_msgRegisters && buffer == 0 {
         length = n_msgRegisters;
     }
-    println!("slot:{:#x} cptr:{:#x},cap:{:#x}",lu_ret.slot as usize,cptr,lu_ret.cap as usize);
+    if lu_ret.cap as usize == 0 {
+        println!("[kernel] slot :{:#x} is empty ", cptr);
+        unsafe {
+            setNextPC(
+                ksCurThread as *mut tcb_t,
+                getReStartPC(ksCurThread as *const tcb_t) + 4,
+            );
+            restore_user_context();
+        }
+    }
+    // println!("cptr:{:#x}", cptr);
     status = decodeInvocation(
         seL4_MessageInfo_ptr_get_label((&info) as *const seL4_MessageInfo_t),
         length,

@@ -7,6 +7,7 @@ use crate::{MASK, println};
 use core::default::Default;
 use core::intrinsics::likely;
 use core::intrinsics::unlikely;
+use core::mem::forget;
 
 use super::structures::{cap_t, cte_t, exception_t};
 
@@ -151,7 +152,6 @@ pub fn resolveAddressBits(
             levelBits = radixBits + guardBits;
             assert!(levelBits != 0);
             capGuard = cap_cnode_cap_get_capCNodeGuard(nodeCap);
-            println!("capptr:{:#x}",capptr);
             guard = (capptr >> ((n_bits - guardBits) & MASK!(wordRadix))) & MASK!(guardBits);
             if unlikely(guardBits > n_bits || guard != capGuard) {
                 panic!(
@@ -165,10 +165,8 @@ pub fn resolveAddressBits(
                 return ret;
             }
             offset = (capptr >> (n_bits - levelBits)) & MASK!(radixBits);
-            println!("radixBits:{:#x} , capptr:{:#x} ,offset :{:#x}",radixBits,capptr,offset);
             slot = ((cap_cnode_cap_get_capCNodePtr(nodeCap)) + offset) as *mut cte_t;
             if likely(n_bits == levelBits) {
-                println!("slot:{:#x}",slot as usize);
                 ret.slot = slot;
                 ret.bitsRemaining = 0;
                 return ret;

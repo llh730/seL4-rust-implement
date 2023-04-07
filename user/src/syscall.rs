@@ -264,7 +264,7 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
     syscall(SYSCALL_CONDVAR_WAIT, [condvar_id, mutex_id, 0])
 }
 
-pub fn sys_send(ep:usize,msg:seL4_MessageInfo_t)->isize{
+pub fn sys_send(ep:usize,msg:&seL4_MessageInfo_t)->isize{
     syscall(SYSCALL_SEND,[ep,msg.words[0],0])
 }
 
@@ -285,7 +285,6 @@ pub fn setExtraCptr(bufferPtr:usize,i:usize,CPtr:usize){
 
 pub fn setTransferCap(buffer:usize,root:usize,index:usize,depth:usize){
     let offset = seL4_MsgMaxLength + 2 + seL4_MsgMaxExtraCaps;
-    println!("buffer :{:#x}",buffer + offset *8);
     unsafe{
         *((buffer+offset*8) as *mut usize )=root;
         *((buffer+offset*8+8) as *mut usize )=index;

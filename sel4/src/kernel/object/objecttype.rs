@@ -7,14 +7,15 @@ use crate::{
     kernel::{
         object::structures::*,
         thread::{
-            arch_tcb_t, ksCurThread, setThreadState, tcb_t, Arch_initContext, ThreadStateRestart,
+            arch_tcb_t, getReStartPC, ksCurThread, setNextPC, setRestartPC, setThreadState, tcb_t,
+            Arch_initContext, ThreadStateRestart,
         },
         vspace::{
             deleteASID, findVSpaceForASID, pageBitsForSize, unmapPage, unmapPageTable,
             RISCV_4K_Page, RISCV_Mega_Page, VMReadWrite,
         },
     },
-    MASK, println,
+    println, MASK,
 };
 extern crate alloc;
 
@@ -440,6 +441,10 @@ pub fn decodeInvocation(
     match cap_get_capType(cap) {
         cap_endpoint_cap => unsafe {
             //FIXME::why restart???
+            // setRestartPC(
+            //     ksCurThread as *mut tcb_t,
+            //     getReStartPC(ksCurThread as *const tcb_t),
+            // );
             // setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
             let canGrant = if cap_endpoint_cap_get_capCanGrant(cap) != 0 {
                 true

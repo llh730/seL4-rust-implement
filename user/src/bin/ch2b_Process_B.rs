@@ -30,23 +30,41 @@ pub fn recv() {
         println!("[Process B] receive message: {}", msg);
     }
 }
-#[no_mangle]
-fn main() -> i32 {
-    println!("in process B");
-    let epptr_to_A: usize = 0x80a000b0;
-    let epptr_to_C: usize = 0x80a000c0;
+
+const epptr_to_A: usize = 0x802400b0;
+const epptr_to_C: usize = 0x802400c0;
+
+pub fn send_to_A(){
     let src = String::from("hello world from [Process B]");
     let length = src.len() + 4;
     let msg_to_A = seL4_MessageInfo_new(0, 0, 0, length);
-    let msg_to_C = seL4_MessageInfo_new(0, 0, 0, length);
     let dst = unsafe { core::slice::from_raw_parts_mut(ipc_buffer as *mut u8, src.len()) };
     dst.copy_from_slice(src.into_bytes().as_slice());
     forget(dst);
-    sys_send(epptr_to_A, msg_to_A);
-    sys_send(epptr_to_C, msg_to_C);
+    sys_send(epptr_to_A, &msg_to_A);
+}
+pub fn send_to_C(){
+    let src = String::from("hello world from [Process B]");
+    let length = src.len() + 4;
+    let dst = unsafe { core::slice::from_raw_parts_mut(ipc_buffer as *mut u8, src.len()) };
+    dst.copy_from_slice(src.into_bytes().as_slice());
+    let msg_to_C = seL4_MessageInfo_new(0, 0, 0, length);
+    forget(dst);
+    sys_send(epptr_to_C, &msg_to_C);
+}
+#[no_mangle]
+fn main() -> i32 {
+    println!("in process B");
+    
+    
+    
+    
+    
+    send_to_A();
+    send_to_C();
     
     let msg_pass_capability = seL4_MessageInfo_new(0, 0, 1, 0);
     setExtraCptr(ipc_buffer, 0, epptr_to_C);
-    sys_send(epptr_to_A,msg_pass_capability);
+    sys_send(epptr_to_A,&msg_pass_capability);
     0
 }

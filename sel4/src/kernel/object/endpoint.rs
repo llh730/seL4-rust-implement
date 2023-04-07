@@ -56,7 +56,7 @@ pub fn sendIPC(
         match endpoint_ptr_get_state(epptr) {
             EPState_Idle | EPState_Send => {
                 if blocking {
-                    println!("waiting in sendIPC , epptr:{:#x}",epptr as usize);
+                    // println!("waiting in sendIPC , epptr:{:#x}",epptr as usize);
                     thread_state_set_tsType(
                         (*thread).tcbState as *mut thread_state_t,
                         ThreadStateBlockedOnSend,
@@ -91,7 +91,7 @@ pub fn sendIPC(
                 }
             }
             EPState_Recv => {
-                println!("executing in sendIPC , epptr:{:#x}",epptr as usize);
+                // println!("executing in sendIPC , epptr:{:#x}",epptr as usize);
                 let mut queue = ep_ptr_get_queue(epptr);
                 assert!(queue.head != 0);
                 let dest = queue.head as *mut tcb_t;
@@ -100,7 +100,7 @@ pub fn sendIPC(
                 if queue.head != 0 {
                     endpoint_ptr_set_state(epptr, EPState_Idle);
                 }
-
+                // println!("in sendIPC ,  thread:{:#x} , dest:{:#x}",thread as usize,dest as usize);
                 doIPCTransfer(thread, epptr, badge, canGrant, dest);
                 let replyCanGrant = if thread_state_get_blockingIPCCanGrant((*dest).tcbState) != 0 {
                     true
@@ -133,7 +133,7 @@ pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
         match endpoint_ptr_get_state(epptr) {
             EPState_Idle | EPState_Recv => {
                 if isBlocking {
-                    println!("waiting in receiveIPC , epptr:{:#x}",epptr as usize);
+                    // println!("waiting in receiveIPC , epptr:{:#x}",epptr as usize);
                     thread_state_set_tsType(
                         (*thread).tcbState as *mut thread_state_t,
                         ThreadStateBlockedOnReceive,
@@ -158,7 +158,7 @@ pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
             }
             EPState_Send => {
                 let mut queue = ep_ptr_get_queue(epptr);
-                println!("executing in receiveIPC , epptr:{:#x}",epptr as usize);
+                // println!("executing in receiveIPC , epptr:{:#x}",epptr as usize);
                 assert!(queue.head != 0);
                 let sender = queue.head as *mut tcb_t;
                 queue = tcbEPDequeue(sender, queue);
@@ -177,6 +177,7 @@ pub fn receiveIPC(thread: *mut tcb_t, cap: *const cap_t, isBlocking: bool) {
                     } else {
                         false
                     };
+                // println!("in recvIPC ,  sender:{:#x} , thread:{:#x}",sender as usize,thread as usize);
                 doIPCTransfer(sender, epptr as *mut endpoint_t, badge, canGrant, thread);
                 let do_call = if thread_state_get_blockingIPCIsCall((*sender).tcbState) != 0 {
                     true
