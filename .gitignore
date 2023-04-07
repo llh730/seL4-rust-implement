@@ -1,4 +1,5 @@
 target
 *.log
 *.cp
-user
+user/build
+user/target
