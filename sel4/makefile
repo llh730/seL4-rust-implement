@@ -20,7 +20,7 @@ run: $(KERNEL_BIN)
             -device loader,file=./target/riscv64gc-unknown-none-elf/release/sel4,addr=0x80200000
 
 kernel:
-	#@make -C ../user build TEST=$(TEST) CHAPTER=$(CHAPTER) BASE=$(BASE)
+	@make -C ../user build TEST=3 CHAPTER=3 BASE=1
 	@cargo  build --release
 
 build: env $(KERNEL_BIN)
@@ -30,6 +30,8 @@ $(KERNEL_BIN): kernel
 	@$(OBJDUMP) $(KERNEL_ELF) -S > $(KERNEL_ELF).asm
 
 env:
+	rustup install nightly
+	rustup default nightly
 	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
 	cargo install cargo-binutils --vers ~0.2
 	rustup component add rust-src
