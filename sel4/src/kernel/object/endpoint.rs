@@ -1,4 +1,3 @@
-use alloc::string::String;
 
 use crate::{kernel::{
     object::structures::{
@@ -11,7 +10,7 @@ use crate::{kernel::{
         tcb_queue_t, tcb_t, ThreadStateBlockedOnReceive, ThreadStateBlockedOnSend,
         ThreadStateInactive, ThreadStateRestart, ThreadStateRunning,
     },
-}, println};
+}};
 
 use super::structures::{
     cap_endpoint_cap_get_capCanGrant, cap_endpoint_cap_get_capEPPtr, endpoint_ptr_get_epQueue_head,
