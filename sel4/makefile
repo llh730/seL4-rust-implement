@@ -21,7 +21,7 @@ run: $(KERNEL_BIN)
 
 kernel:
 	#@make -C ../user build TEST=3 CHAPTER=3 BASE=1
-	@cargo  build --release
+	#@cargo  build --release
 
 build: env $(KERNEL_BIN)
 
