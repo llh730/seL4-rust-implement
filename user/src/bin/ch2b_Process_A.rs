@@ -32,6 +32,7 @@ pub fn decode() {
 const epptr: usize = 0x80a000b0;
 const epptr_to_C: usize = 0x80a000c0;
 pub fn send_to_C(){
+    println!("[Process A] try to send message to Process C");
     let src = String::from("hello world from [Process A]");
     let length = src.len() + 4;
     let msg_to_C = seL4_MessageInfo_new(0, 0, 0, length);
