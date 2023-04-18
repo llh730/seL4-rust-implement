@@ -3,7 +3,7 @@ use core::mem;
 use riscv::register::satp;
 
 use crate::syscall::process::getSyscallArg;
-use crate::{config::*,BIT, MASK, ROUND_DOWN, println};
+use crate::{config::*, BIT, IS_ALIGNED, MASK, ROUND_DOWN};
 
 use super::boot::{
     clearMemory, current_extra_caps, get_n_paging, it_alloc_paging, p_region_t, provide_cap,
@@ -916,4 +916,20 @@ pub fn performPageGetAddress(vbase_ptr: usize, call: bool) -> exception_t {
         setThreadState(thread, ThreadStateRestart);
         exception_t::EXCEPTION_NONE
     }
+}
+
+pub fn checkValidIPCBuffer(vptr: usize, cap: *mut cap_t) {
+    if cap_get_capType(cap) != cap_frame_cap {
+        panic!("Requested IPC Buffer is not a frame cap.");
+    }
+    if cap_frame_cap_get_capFIsDevice(cap) != 0 {
+        panic!("Specifying a device frame as an IPC buffer is not permitted.");
+    }
+    if !IS_ALIGNED!(vptr, seL4_IPCBufferSizeBits) {
+        panic!("Requested IPC Buffer location 0x%x is not aligned.")
+    }
+}
+
+pub fn isValidVTableRoot(cap:*mut cap_t)->bool{
+    cap_get_capType(cap)==cap_page_table_cap &&cap_page_table_cap_get_capPTIsMapped(cap)!=0
 }

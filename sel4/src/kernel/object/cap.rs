@@ -1,7 +1,7 @@
 extern crate alloc;
-use core::mem::{size_of, forget};
+use core::mem::size_of;
 
-use crate::{kernel::object::{objecttype::*, structures::*}, println};
+use crate::kernel::object::{objecttype::*, structures::*};
 
 use super::endpoint::cancelBadgedSends;
 
@@ -35,7 +35,7 @@ pub fn cteInsert(newCap: *const cap_t, _srcSlot: *const cte_t, _destSlot: *const
         setUntypedCapAsFull(srcCap, newCap, _srcSlot);
         (*(_destSlot as *mut cte_t)).cap = newCap as *mut cap_t;
         (*(_destSlot as *mut cte_t)).cteMDBNode = newMDB as *mut mdb_node_t;
-       
+
         mdb_node_ptr_set_mdbNext((*srcSlot).cteMDBNode, _destSlot as usize);
         if mdb_node_get_mdbNext(newMDB) != 0 {
             let cte_ptr = mdb_node_get_mdbNext(newMDB) as *const cte_t;
@@ -437,3 +437,18 @@ pub fn invokeCNodeRevoke(destSlot: *const cte_t) -> exception_t {
 // pub fn decodeCNodeInvocation(invLabel: usize, length: usize, cap: *const cap_t, buffer: usize) {
 //     let mut lu_ret = lookupSlot_ret_t::default();
 // }
+
+pub fn slotCapLongRunningDelete(slot: *const cte_t) -> bool {
+    unsafe {
+        if cap_get_capType((*slot).cap) == cap_null_cap {
+            return false;
+        } else if !isFinalcapability(slot) {
+            return false;
+        }
+
+        match cap_get_capType((*slot).cap) {
+            cap_thread_cap | cap_zombie_cap | cap_cnode_cap => true,
+            _ => false,
+        }
+    }
+}

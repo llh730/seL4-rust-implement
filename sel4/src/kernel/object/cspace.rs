@@ -3,11 +3,10 @@ extern crate alloc;
 use crate::config::{tcbCTable, wordBits};
 use crate::kernel::object::{objecttype::*, structures::*};
 use crate::kernel::thread::tcb_t;
-use crate::{MASK, println};
+use crate::MASK;
 use core::default::Default;
 use core::intrinsics::likely;
 use core::intrinsics::unlikely;
-use core::mem::forget;
 
 use super::structures::{cap_t, cte_t, exception_t};
 

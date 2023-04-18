@@ -74,6 +74,7 @@ pub const seL4_SlotBits: usize = 5;
 pub const seL4_PML4Bits: usize = 12;
 pub const seL4_VSpaceBits: usize = seL4_PML4Bits;
 pub const seL4_TCBBits: usize = 12;
+pub const seL4_IPCBufferSizeBits: usize = 10;
 pub const BI_FRAME_SIZE_BITS: usize = 12;
 pub const seL4_ASIDPoolBits: usize = 12;
 pub const seL4_NumInitialCaps: usize = 14;
@@ -151,3 +152,24 @@ pub const RISCVASIDControlMakePool: usize = 35;
 pub const RISCVASIDAssign: usize = 36;
 pub const RISCVIRQIssueIRQHandlerTrigger: usize = 37;
 pub const nArchInvocationLabels: usize = 38;
+
+pub const n_frameRegisters: usize = 16;
+pub const n_gpRegisters: usize = 16;
+pub const n_exceptionMessage: usize = 2;
+pub const n_syscallMessage: usize = 10;
+
+pub const CopyRegisters_suspendSource: usize = 0;
+pub const CopyRegisters_resumeTarget: usize = 1;
+pub const CopyRegisters_transferFrame: usize = 2;
+pub const CopyRegisters_transferInteger: usize = 3;
+
+pub const ReadRegisters_suspend: usize = 0;
+pub const frameRegisters: [usize; n_frameRegisters] =
+    [33, 0, 1, 2, 7, 8, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26];
+pub const gpRegisters: [usize; n_gpRegisters] =
+    [9, 10, 11, 12, 13, 14, 15, 16, 4, 5, 6, 27, 28, 29, 30, 3];
+pub const msgRegister: [usize; n_msgRegisters] = [11, 12, 13, 14];
+pub const thread_control_update_priority: usize = 0x1;
+pub const thread_control_update_ipc_buffer: usize = 0x2;
+pub const thread_control_update_space: usize = 0x4;
+pub const thread_control_update_mcp: usize = 0x8;

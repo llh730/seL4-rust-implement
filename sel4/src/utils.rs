@@ -37,3 +37,12 @@ macro_rules! ROUND_UP {
         }
     }
 }
+
+#[macro_export]
+macro_rules! IS_ALIGNED {
+    ($n:expr,$b:expr) => {
+        {
+            $n&MASK!($b)==0
+        }
+    }
+}

@@ -1,18 +1,17 @@
-use alloc::string::String;
-
-use crate::config::{msgInfoRegister, n_msgRegisters, SchedulerAction_ChooseNewThread};
-use crate::kernel::boot::current_extra_caps;
+use crate::config::{
+    msgInfoRegister, msgRegister, n_msgRegisters, SchedulerAction_ChooseNewThread,
+};
 use crate::kernel::object::cspace::{lookupCap, lookupCapAndSlot};
-use crate::kernel::object::endpoint::{self, receiveIPC};
+use crate::kernel::object::endpoint::receiveIPC;
 use crate::kernel::object::msg::{
     seL4_MessageInfo_ptr_get_label, seL4_MessageInfo_ptr_get_length, seL4_MessageInfo_t,
 };
 use crate::kernel::object::objecttype::{cap_endpoint_cap, decodeInvocation};
 use crate::kernel::object::structures::cap_get_capType;
 use crate::kernel::thread::{
-    activateThread, capRegister, getMsgRegisterNumber, getReStartPC, getRegister, ksCurThread,
-    ksSchedulerAction, lookupExtraCaps, messageInfoFromWord, rescheduleRequired, schedule,
-    setNextPC, setThreadState, tcbSchedDequeue, tcbSchedEnqueue, tcb_t, ThreadStateExited,
+    activateThread, capRegister, getReStartPC, getRegister, ksCurThread, ksSchedulerAction,
+    lookupExtraCaps, messageInfoFromWord, rescheduleRequired, schedule, setNextPC, setThreadState,
+    tcbSchedDequeue, tcbSchedEnqueue, tcb_t, ThreadStateExited,
 };
 use crate::kernel::vspace::lookupIPCBuffer;
 use crate::println;
@@ -155,7 +154,7 @@ pub fn handleRecv(isBlocking: bool) -> isize {
 pub fn getSyscallArg(i: usize, ipc_buffer: usize) -> usize {
     unsafe {
         if i < n_msgRegisters {
-            return getRegister(ksCurThread as *const tcb_t, getMsgRegisterNumber(i));
+            return getRegister(ksCurThread as *const tcb_t, msgRegister[i]);
         } else {
             let ptr = (ipc_buffer + i + 1) as *const usize;
             assert!(ipc_buffer != 0);

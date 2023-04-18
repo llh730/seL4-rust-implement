@@ -1,37 +1,49 @@
 extern crate alloc;
 use crate::{
     config::{
-        msgInfoRegister, n_msgRegisters, seL4_MsgMaxExtraCaps, seL4_MsgMaxLength, tcbCNodeEntries,
-        tcbCaller, tcbReply, wordBits, SchedulerAction_ChooseNewThread,
-        SchedulerAction_ResumeCurrentThread, CONFIG_NUM_DOMAINS, CONFIG_NUM_PRIORITIES,
+        frameRegisters, gpRegisters, msgInfoRegister, msgRegister, n_frameRegisters, n_gpRegisters,
+        n_msgRegisters, seL4_MsgMaxExtraCaps, seL4_MsgMaxLength, tcbBuffer, tcbCNodeEntries,
+        tcbCTable, tcbCaller, tcbReply, tcbVTable, thread_control_update_ipc_buffer,
+        thread_control_update_mcp, thread_control_update_priority, thread_control_update_space,
+        wordBits, CopyRegisters_resumeTarget, CopyRegisters_suspendSource,
+        CopyRegisters_transferFrame, CopyRegisters_transferInteger, ReadRegisters_suspend,
+        SchedulerAction_ChooseNewThread, SchedulerAction_ResumeCurrentThread, TCBBindNotification,
+        TCBConfigure, TCBCopyRegisters, TCBReadRegisters, TCBResume, TCBSetIPCBuffer,
+        TCBSetMCPriority, TCBSetPriority, TCBSetSchedParams, TCBSetSpace, TCBSuspend,
+        TCBUnbindNotification, TCBWriteRegisters, CONFIG_NUM_DOMAINS, CONFIG_NUM_PRIORITIES,
         L2_BITMAP_SIZE, NUM_READY_QUEUES, SSTATUS_SPIE, SSTATUS_SPP,
     },
     elfloader::KERNEL_STACK,
     kernel::object::objecttype::cap_reply_cap,
     println,
     sbi::shutdown,
+    syscall::process::getSyscallArg,
     BIT, MASK,
 };
 use alloc::string::String;
-use core::{arch::asm, mem::forget};
+use core::{arch::asm, panic};
 use riscv::register::sstatus::{self, SPP};
 
 use super::{
     boot::current_extra_caps,
     object::{
-        cap::cteInsert,
+        cap::{cteDelete, cteInsert, slotCapLongRunningDelete},
         cspace::{capTransferFromWords, cap_transfer_t, lookupCap, lookupSlot, lookupTargetSlot},
         endpoint::cancelIPC,
         msg::{
-            seL4_MessageInfo_ptr_get_capsUnwrapped, seL4_MessageInfo_ptr_get_extraCaps,
-            seL4_MessageInfo_ptr_get_length, seL4_MessageInfo_ptr_set_capsUnwrapped,
-            seL4_MessageInfo_ptr_set_extraCaps, seL4_MessageInfo_ptr_set_length,
-            seL4_MessageInfo_t,
+            seL4_MessageInfo_new, seL4_MessageInfo_ptr_get_capsUnwrapped,
+            seL4_MessageInfo_ptr_get_extraCaps, seL4_MessageInfo_ptr_get_length,
+            seL4_MessageInfo_ptr_set_capsUnwrapped, seL4_MessageInfo_ptr_set_extraCaps,
+            seL4_MessageInfo_ptr_set_length, seL4_MessageInfo_t,
         },
-        objecttype::{cap_endpoint_cap, cap_null_cap, deriveCap},
+        notification::{bindNotification, unbindNotification},
+        objecttype::{
+            cap_cnode_cap, cap_endpoint_cap, cap_notification_cap, cap_null_cap, cap_thread_cap,
+            deriveCap, sameObjectAs, updateCapData,
+        },
         structures::*,
     },
-    vspace::{lookupIPCBuffer, setVMRoot},
+    vspace::{checkValidIPCBuffer, isValidVTableRoot, lookupIPCBuffer, setVMRoot},
 };
 
 type prio_t = usize;
@@ -303,7 +315,7 @@ pub fn setMR(receiver: *const tcb_t, receivedBuffer: usize, offset: usize, reg: 
             return n_msgRegisters;
         }
     } else {
-        setRegister(receiver as *mut tcb_t, getMsgRegisterNumber(offset), reg);
+        setRegister(receiver as *mut tcb_t, msgRegister[offset], reg);
         return offset + 1;
     }
 }
@@ -765,8 +777,8 @@ pub fn copyMRs(
     while i < n && i < n_msgRegisters {
         setRegister(
             receiver,
-            getMsgRegisterNumber(i),
-            getRegister(sender, getMsgRegisterNumber(i)),
+            msgRegister[i],
+            getRegister(sender, msgRegister[i]),
         );
         i += 1;
     }
@@ -803,10 +815,6 @@ pub fn copyMRs(
     //     // drop(msg);
     // }
     i
-}
-
-pub fn getMsgRegisterNumber(index: usize) -> usize {
-    index + 11
 }
 
 pub fn lookupExtraCaps(
@@ -946,4 +954,708 @@ pub fn setupCallerCap(sender: *const tcb_t, receiver: *const tcb_t, canGrant: bo
             callerSlot,
         );
     }
+}
+
+pub fn decodeTCBInvocation(
+    invLabel: usize,
+    length: usize,
+    cap: *const cap_t,
+    slot: *const cte_t,
+    call: bool,
+    buffer: usize,
+) -> exception_t {
+    match invLabel {
+        TCBReadRegisters => decodeReadRegisters(cap, length, call, buffer),
+        TCBWriteRegisters => decodeWriteRegisters(cap, length, buffer),
+        TCBCopyRegisters => decodeCopyRegisters(cap, length, buffer),
+        TCBSuspend => unsafe {
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+            invokeTCB_Suspend(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t)
+        },
+        TCBResume => unsafe {
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+            invokeTCB_Resume(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t)
+        },
+        TCBConfigure => decodeTCBConfigure(cap, length, slot, buffer),
+        TCBSetPriority => decodeSetPriority(cap, length, buffer),
+        TCBSetMCPriority => decodeSetMCPriority(cap, length, buffer),
+        TCBSetSchedParams => decodeSetSchedParams(cap, length, buffer),
+        TCBSetIPCBuffer => decodeSetIPCBuffer(cap, length, slot as *mut cte_t, buffer),
+        TCBSetSpace => decodeSetSpace(cap, length, slot as *mut cte_t, buffer),
+        TCBBindNotification => decodeBindNotification(cap),
+        TCBUnbindNotification => decodeUnbindNotification(cap),
+        _ => panic!("invalid invLabel :{}", invLabel),
+    }
+}
+
+pub fn decodeReadRegisters(
+    cap: *const cap_t,
+    length: usize,
+    call: bool,
+    buffer: usize,
+) -> exception_t {
+    if length < 2 {
+        panic!("Truncated message");
+    }
+    let flags = getSyscallArg(0, buffer);
+    let n = getSyscallArg(1, buffer);
+    if n < 1 || n > n_frameRegisters + n_gpRegisters {
+        panic!(
+            "TCB ReadRegisters: Attempted to read an invalid number of registers:{}",
+            n
+        );
+    }
+    unsafe {
+        let source_cap = (*current_extra_caps.excaprefs[0]).cap;
+        if cap_get_capType(source_cap) != cap_thread_cap {
+            panic!("TCB CopyRegisters: Invalid source TCB");
+        }
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+        invokeTCB_ReadRegisters(
+            cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t,
+            flags & BIT!(ReadRegisters_suspend),
+            n,
+            0,
+            call,
+        )
+    }
+}
+
+pub fn decodeWriteRegisters(cap: *const cap_t, length: usize, buffer: usize) -> exception_t {
+    if length < 2 {
+        panic!("Truncated message");
+    }
+    let flags = getSyscallArg(0, buffer);
+    let w = getSyscallArg(1, buffer);
+
+    if length - 2 < w {
+        panic!(
+            "TCB WriteRegisters: Message too short for requested write size {}/{}",
+            length - 2,
+            w
+        );
+    }
+    let thread = cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t;
+    unsafe {
+        if thread as usize == ksCurThread {
+            panic!("TCB WriteRegisters: Attempted to write our own registers.");
+        }
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+    }
+    invokeTCB_WriteRegisters(thread, flags & BIT!(0), w, 0, buffer)
+}
+
+pub fn decodeCopyRegisters(cap: *const cap_t, _length: usize, buffer: usize) -> exception_t {
+    let flags = getSyscallArg(0, buffer);
+    let source_cap: *mut cap_t;
+    unsafe {
+        source_cap = (*current_extra_caps.excaprefs[0]).cap;
+    }
+    if cap_get_capType(cap) != cap_thread_cap {
+        panic!("TCB CopyRegisters: Invalid source TCB.");
+    }
+    let srcTCB = cap_thread_cap_get_capTCBPtr(source_cap) as *mut tcb_t;
+    return invokeTCB_CopyRegisters(
+        cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t,
+        srcTCB,
+        flags & BIT!(CopyRegisters_suspendSource),
+        flags & BIT!(CopyRegisters_resumeTarget),
+        flags & BIT!(CopyRegisters_transferFrame),
+        flags & BIT!(CopyRegisters_transferInteger),
+        0,
+    );
+}
+
+pub fn invokeTCB_CopyRegisters(
+    dest: *mut tcb_t,
+    src: *mut tcb_t,
+    suspendSource: usize,
+    resumeTarget: usize,
+    transferFrame: usize,
+    _transferInteger: usize,
+    _transferArch: usize,
+) -> exception_t {
+    if suspendSource != 0 {
+        suspend(src);
+    }
+    if resumeTarget != 0 {
+        restart(dest);
+    }
+    if transferFrame != 0 {
+        for i in 0..n_gpRegisters {
+            let v = getRegister(src, gpRegisters[i]);
+            setRegister(dest, gpRegisters[i], v);
+        }
+    }
+    unsafe {
+        if dest as usize == ksCurThread {
+            rescheduleRequired();
+        }
+    }
+    exception_t::EXCEPTION_NONE
+}
+
+pub fn invokeTCB_ReadRegisters(
+    src: *mut tcb_t,
+    suspendSource: usize,
+    n: usize,
+    _arch: usize,
+    call: bool,
+) -> exception_t {
+    let thread: *mut tcb_t;
+    unsafe {
+        thread = ksCurThread as *mut tcb_t;
+    }
+    if suspendSource != 0 {
+        suspend(src);
+    }
+
+    if call {
+        let ipcBuffer = lookupIPCBuffer(true, thread);
+        setRegister(thread, badgeRegister, 0);
+        let mut i: usize = 0;
+        while i < n && i < n_frameRegisters && i < n_msgRegisters {
+            setRegister(thread, msgRegister[i], getRegister(src, frameRegisters[i]));
+            i += 1;
+        }
+        if ipcBuffer != 0 && i < n && i < n_frameRegisters {
+            while i < n && i < n_frameRegisters {
+                unsafe {
+                    let ptr = (ipcBuffer + (i + 1) * 8) as *mut usize;
+                    *ptr = getRegister(src, frameRegisters[i]);
+                }
+                i += 1;
+            }
+        }
+        let j = i;
+        i = 0;
+        while i < n_gpRegisters && i + n_frameRegisters < n && i + n_frameRegisters < n_msgRegisters
+        {
+            setRegister(
+                thread,
+                msgRegister[i + n_frameRegisters],
+                getRegister(src, gpRegisters[i]),
+            );
+            i += 1;
+        }
+        if ipcBuffer != 0 && i < n_gpRegisters && i + n_frameRegisters < n {
+            while i < n_gpRegisters && i + n_frameRegisters < n {
+                let ptr = (ipcBuffer + (i + 1 + n_frameRegisters) * 8) as *mut usize;
+                unsafe {
+                    *ptr = getRegister(src, frameRegisters[i]);
+                }
+                i += 1;
+            }
+        }
+        setRegister(
+            thread,
+            msgInfoRegister,
+            wordFromMEssageInfo(seL4_MessageInfo_new(0, 0, 0, i + j)),
+        );
+    }
+    setThreadState(thread, ThreadStateRunning);
+    exception_t::EXCEPTION_NONE
+}
+
+pub fn invokeTCB_WriteRegisters(
+    dest: *mut tcb_t,
+    resumeTarget: usize,
+    mut n: usize,
+    _arch: usize,
+    buffer: usize,
+) -> exception_t {
+    if n > n_frameRegisters + n_gpRegisters {
+        n = n_frameRegisters + n_gpRegisters;
+    }
+    let mut i = 0;
+    while i < n_frameRegisters && i < n {
+        setRegister(
+            dest,
+            frameRegisters[i],
+            getSyscallArg(i + n_frameRegisters + 2, buffer),
+        );
+        i += 1;
+    }
+    let pc = getReStartPC(dest);
+    setNextPC(dest, pc);
+
+    if resumeTarget != 0 {
+        restart(dest);
+    }
+    unsafe {
+        if dest as usize == ksCurThread {
+            rescheduleRequired();
+        }
+    }
+    exception_t::EXCEPTION_NONE
+}
+
+pub fn invokeTCB_Suspend(thread: *mut tcb_t) -> exception_t {
+    suspend(thread);
+    exception_t::EXCEPTION_NONE
+}
+pub fn invokeTCB_Resume(thread: *mut tcb_t) -> exception_t {
+    restart(thread);
+    exception_t::EXCEPTION_NONE
+}
+
+pub fn decodeSetSpace(
+    cap: *const cap_t,
+    length: usize,
+    slot: *mut cte_t,
+    buffer: usize,
+) -> exception_t {
+    unsafe {
+        if length < 3
+            || current_extra_caps.excaprefs[0] as usize == 0
+            || current_extra_caps.excaprefs[0] as usize == 0
+        {
+            panic!("TCB SetSpace: Truncated message.");
+        }
+    }
+    let faultEP = getSyscallArg(0, buffer);
+    let cRootData = getSyscallArg(1, buffer);
+    let vRootData = getSyscallArg(2, buffer);
+
+    let cRootSlot: *const cte_t;
+    let mut cRootCap: *mut cap_t;
+    let vRootSlot: *const cte_t;
+    let mut vRootCap: *mut cap_t;
+    unsafe {
+        cRootSlot = current_extra_caps.excaprefs[0];
+        cRootCap = (*current_extra_caps.excaprefs[0]).cap;
+        vRootSlot = current_extra_caps.excaprefs[1];
+        vRootCap = (*current_extra_caps.excaprefs[1]).cap;
+    }
+
+    unsafe {
+        if slotCapLongRunningDelete(
+            (*(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t)).rootCap[tcbCTable],
+        ) || slotCapLongRunningDelete(
+            (*(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t)).rootCap[tcbVTable],
+        ) {
+            panic!("TCB Configure: CSpace or VSpace currently being deleted.");
+        }
+    }
+
+    if cRootData as usize != 0 {
+        cRootCap = updateCapData(false, cRootData, cRootCap) as *mut cap_t;
+    }
+    let dc_ret = deriveCap(cRootSlot, cRootCap);
+    if dc_ret.status != exception_t::EXCEPTION_NONE {
+        panic!("error occur when deriveCap");
+    }
+    cRootCap = dc_ret.cap as *mut cap_t;
+    if cap_get_capType(cRootCap) != cap_cnode_cap {
+        panic!("TCB Configure: CSpace cap is invalid.");
+    }
+
+    if vRootData as usize != 0 {
+        vRootCap = updateCapData(false, cRootData, cRootCap) as *mut cap_t;
+    }
+    let dc_ret = deriveCap(vRootSlot, vRootCap);
+    if dc_ret.status != exception_t::EXCEPTION_NONE {
+        panic!("error occur when deriveCap");
+    }
+    vRootCap = dc_ret.cap as *mut cap_t;
+    if !isValidVTableRoot(vRootCap) {
+        panic!("TCB Configure: VSpace cap is invalid.");
+    }
+
+    unsafe {
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+    }
+
+    invokeTCB_ThreadControl(
+        cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t,
+        slot as *mut cte_t,
+        faultEP,
+        0,
+        0,
+        cRootCap,
+        cRootSlot as *mut cte_t,
+        vRootCap,
+        vRootSlot as *mut cte_t,
+        0,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        thread_control_update_space,
+    )
+}
+
+pub fn decodeTCBConfigure(
+    cap: *const cap_t,
+    _length: usize,
+    slot: *const cte_t,
+    buffer: usize,
+) -> exception_t {
+    let faultEP = getSyscallArg(0, buffer);
+    let cRootData = getSyscallArg(1, buffer);
+    let vRootData = getSyscallArg(2, buffer);
+    let bufferAddr = getSyscallArg(3, buffer);
+    let cRootSlot: *const cte_t;
+    let mut cRootCap: *mut cap_t;
+    let vRootSlot: *const cte_t;
+    let mut vRootCap: *mut cap_t;
+    let mut bufferSlot: *const cte_t;
+    let mut bufferCap: *mut cap_t;
+    unsafe {
+        cRootSlot = current_extra_caps.excaprefs[0];
+        cRootCap = (*current_extra_caps.excaprefs[0]).cap;
+        vRootSlot = current_extra_caps.excaprefs[1];
+        vRootCap = (*current_extra_caps.excaprefs[1]).cap;
+        bufferSlot = current_extra_caps.excaprefs[2];
+        bufferCap = (*current_extra_caps.excaprefs[2]).cap;
+    }
+    if bufferAddr == 0 {
+        bufferSlot = 0 as *const cte_t;
+    } else {
+        let dc_ret = deriveCap(bufferSlot, bufferCap);
+        if dc_ret.status != exception_t::EXCEPTION_NONE {
+            panic!("error occur when deriveCap");
+        }
+        bufferCap = dc_ret.cap as *mut cap_t;
+        checkValidIPCBuffer(bufferAddr, bufferCap);
+    }
+    unsafe {
+        if slotCapLongRunningDelete(
+            (*(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t)).rootCap[tcbCTable],
+        ) || slotCapLongRunningDelete(
+            (*(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t)).rootCap[tcbVTable],
+        ) {
+            panic!("TCB Configure: CSpace or VSpace currently being deleted.");
+        }
+    }
+
+    if cRootData as usize != 0 {
+        cRootCap = updateCapData(false, cRootData, cRootCap) as *mut cap_t;
+    }
+    let dc_ret = deriveCap(cRootSlot, cRootCap);
+    if dc_ret.status != exception_t::EXCEPTION_NONE {
+        panic!("error occur when deriveCap");
+    }
+    cRootCap = dc_ret.cap as *mut cap_t;
+    if cap_get_capType(cRootCap) != cap_cnode_cap {
+        panic!("TCB Configure: CSpace cap is invalid.");
+    }
+
+    if vRootData as usize != 0 {
+        vRootCap = updateCapData(false, cRootData, cRootCap) as *mut cap_t;
+    }
+    let dc_ret = deriveCap(vRootSlot, vRootCap);
+    if dc_ret.status != exception_t::EXCEPTION_NONE {
+        panic!("error occur when deriveCap");
+    }
+    vRootCap = dc_ret.cap as *mut cap_t;
+    if !isValidVTableRoot(vRootCap) {
+        panic!("TCB Configure: VSpace cap is invalid.");
+    }
+
+    unsafe {
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+    }
+    invokeTCB_ThreadControl(
+        cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t,
+        slot as *mut cte_t,
+        faultEP,
+        0,
+        0,
+        cRootCap,
+        cRootSlot as *mut cte_t,
+        vRootCap,
+        vRootSlot as *mut cte_t,
+        bufferAddr,
+        bufferCap,
+        bufferSlot as *mut cte_t,
+        thread_control_update_space | thread_control_update_ipc_buffer,
+    )
+}
+
+pub fn invokeTCB_ThreadControl(
+    target: *mut tcb_t,
+    slot: *mut cte_t,
+    faultep: usize,
+    mcp: usize,
+    prio: usize,
+    cRoot_newCap: *const cap_t,
+    cRoot_srcSlot: *mut cte_t,
+    vRoot_newCap: *const cap_t,
+    vRoot_srcSlot: *mut cte_t,
+    bufferAddr: usize,
+    bufferCap: *const cap_t,
+    bufferSrcSlot: *mut cte_t,
+    updateFlags: usize,
+) -> exception_t {
+    unsafe {
+        let tCap = cap_thread_cap_new(target as usize);
+
+        if updateFlags & thread_control_update_mcp != 0 {
+            setMCPriority(target, mcp);
+        }
+        if updateFlags & thread_control_update_space != 0 {
+            (*target).tcbFaultHandler = faultep;
+
+            let rootSlot = (*target).rootCap[tcbCTable] as *mut cte_t;
+            let e = cteDelete(rootSlot, true);
+            if e != exception_t::EXCEPTION_NONE {
+                panic!("error occur when deleting ccap");
+            }
+            if sameObjectAs(cRoot_newCap, (*cRoot_srcSlot).cap) && sameObjectAs(tCap, (*slot).cap) {
+                cteInsert(cRoot_newCap, cRoot_srcSlot, rootSlot);
+            }
+
+            let rootVSlot = (*target).rootCap[tcbCTable] as *mut cte_t;
+            let e = cteDelete(rootVSlot, true);
+            if e != exception_t::EXCEPTION_NONE {
+                panic!("error occur when deleting vcap");
+            }
+            if sameObjectAs(vRoot_newCap, (*vRoot_srcSlot).cap) && sameObjectAs(tCap, (*slot).cap) {
+                cteInsert(vRoot_newCap, vRoot_srcSlot, rootVSlot);
+            }
+        }
+
+        if (updateFlags & thread_control_update_ipc_buffer) != 0 {
+            let bufferSlot = (*target).rootCap[tcbBuffer];
+            let e = cteDelete(bufferSlot, true);
+            if e != exception_t::EXCEPTION_NONE {
+                panic!("error occur when deleting buffercap");
+            }
+            (*target).tcbIPCBuffer = bufferAddr;
+            if bufferSrcSlot as usize != 0
+                && sameObjectAs(bufferCap, (*bufferSrcSlot).cap)
+                && sameObjectAs(tCap, (*slot).cap)
+            {
+                cteInsert(bufferCap, bufferSrcSlot, bufferSlot);
+            }
+            if target as usize == ksCurThread {
+                rescheduleRequired();
+            }
+        }
+        if (updateFlags & thread_control_update_priority) != 0 {
+            setPriority(target, prio);
+        }
+    }
+    exception_t::EXCEPTION_NONE
+}
+
+pub fn checkPrio(prio: usize, auth: *const tcb_t) {
+    unsafe {
+        let mcp = (*auth).tcbMCP;
+        if prio > mcp {
+            panic!(
+                "TCB Priority: Requested priority {}  too high (max {} ).",
+                prio,
+                (*auth).tcbMCP
+            );
+        }
+    }
+}
+
+pub fn decodeSetPriority(cap: *const cap_t, length: usize, buffer: usize) -> exception_t {
+    unsafe {
+        if length < 1 || current_extra_caps.excaprefs[0] as usize == 0 {
+            panic!("TCB SetPriority: Truncated message.");
+        }
+    }
+    let newPrio = getSyscallArg(0, buffer);
+    let authCap: *mut cap_t;
+    unsafe {
+        authCap = (*current_extra_caps.excaprefs[0]).cap;
+    }
+    if cap_get_capType(authCap) != cap_thread_cap {
+        panic!("Set priority: authority cap not a TCB.");
+    }
+    let authTCB = cap_thread_cap_get_capTCBPtr(authCap) as *const tcb_t;
+    checkPrio(newPrio, authTCB);
+    unsafe {
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+    }
+    invokeTCB_ThreadControl(
+        cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t,
+        0 as *mut cte_t,
+        0,
+        0,
+        newPrio,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        0,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        thread_control_update_priority,
+    )
+}
+
+pub fn decodeSetMCPriority(cap: *const cap_t, length: usize, buffer: usize) -> exception_t {
+    unsafe {
+        if length < 1 || current_extra_caps.excaprefs[0] as usize == 0 {
+            panic!("TCB SetMCPPriority: Truncated message.");
+        }
+    }
+    let newMcp = getSyscallArg(0, buffer);
+    let authCap: *mut cap_t;
+    unsafe {
+        authCap = (*current_extra_caps.excaprefs[0]).cap;
+    }
+    if cap_get_capType(authCap) != cap_thread_cap {
+        panic!("SetMCPriority: authority cap not a TCB.");
+    }
+    let authTCB = cap_thread_cap_get_capTCBPtr(authCap) as *const tcb_t;
+    checkPrio(newMcp, authTCB);
+    invokeTCB_ThreadControl(
+        cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t,
+        0 as *mut cte_t,
+        0,
+        newMcp,
+        0,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        0,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        thread_control_update_mcp,
+    )
+}
+
+pub fn decodeSetSchedParams(cap: *const cap_t, length: usize, buffer: usize) -> exception_t {
+    unsafe {
+        if length < 2 || current_extra_caps.excaprefs[0] as usize == 0 {
+            panic!("TCB SetSchedParams: Truncated message.");
+        }
+    }
+    let newMcp = getSyscallArg(0, buffer);
+    let newPrio = getSyscallArg(1, buffer);
+    let authCap: *mut cap_t;
+    unsafe {
+        authCap = (*current_extra_caps.excaprefs[0]).cap;
+    }
+    if cap_get_capType(authCap) != cap_thread_cap {
+        panic!("SetSchedParams: authority cap not a TCB.");
+    }
+
+    let authTCB = cap_thread_cap_get_capTCBPtr(authCap) as *const tcb_t;
+    checkPrio(newMcp, authTCB);
+    checkPrio(newPrio, authTCB);
+    unsafe {
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+    }
+    invokeTCB_ThreadControl(
+        cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t,
+        0 as *mut cte_t,
+        0,
+        newMcp,
+        newPrio,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        0,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        thread_control_update_mcp | thread_control_update_priority,
+    )
+}
+
+pub fn decodeSetIPCBuffer(
+    cap: *const cap_t,
+    length: usize,
+    slot: *mut cte_t,
+    buffer: usize,
+) -> exception_t {
+    unsafe {
+        if length < 1 || current_extra_caps.excaprefs[0] as usize == 0 {
+            panic!("TCB SetIPCBuffer: Truncated message.");
+        }
+    }
+    let cptr_bufferPtr = getSyscallArg(0, buffer);
+    let mut bufferSlot: *mut cte_t;
+    let mut bufferCap: *mut cap_t;
+    unsafe {
+        bufferSlot = current_extra_caps.excaprefs[0] as *mut cte_t;
+        bufferCap = (*current_extra_caps.excaprefs[0]).cap;
+    }
+    if cptr_bufferPtr == 0 {
+        bufferSlot = 0 as *mut cte_t;
+    } else {
+        let dc_ret = deriveCap(bufferSlot, bufferCap);
+        if dc_ret.status != exception_t::EXCEPTION_NONE {
+            panic!("error occur when deriving cap");
+        }
+        bufferCap = dc_ret.cap as *mut cap_t;
+        checkValidIPCBuffer(cptr_bufferPtr, bufferCap);
+    }
+    unsafe {
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+    }
+    invokeTCB_ThreadControl(
+        cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t,
+        slot,
+        0,
+        0,
+        0,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        cap_null_cap_new(),
+        0 as *mut cte_t,
+        cptr_bufferPtr,
+        bufferCap,
+        bufferSlot,
+        thread_control_update_ipc_buffer,
+    )
+}
+
+pub fn decodeBindNotification(cap: *const cap_t) -> exception_t {
+    let tcb = cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t;
+    let ntfnPtr: *mut notification_t;
+    unsafe {
+        if (*tcb).tcbBoundNotification != 0 {
+            panic!("TCB BindNotification: TCB already has a bound notification.");
+        }
+    }
+    let ntfn_cap: *mut cap_t;
+    unsafe {
+        ntfn_cap = (*current_extra_caps.excaprefs[0]).cap as *mut cap_t;
+    }
+    if cap_get_capType(ntfn_cap) == cap_notification_cap {
+        ntfnPtr = cap_notification_cap_get_capNtfnPtr(ntfn_cap) as *mut notification_t;
+    } else {
+        panic!("TCB BindNotification: Notification is invalid.");
+    }
+    if cap_notification_cap_get_capNtfnCanReceive(ntfn_cap) == 0 {
+        panic!("TCB BindNotification: Insufficient access rights");
+    }
+
+    if notification_ptr_get_ntfnQueue_head(ntfnPtr) != 0
+        || notification_ptr_get_ntfnQueue_tail(ntfnPtr) != 0
+    {
+        panic!("TCB BindNotification: Notification cannot be bound.");
+    }
+    unsafe {
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+    }
+    invokeTCB_NotificationControl(tcb, ntfnPtr)
+}
+
+pub fn invokeTCB_NotificationControl(tcb: *mut tcb_t, ntfnPtr: *mut notification_t) -> exception_t {
+    if ntfnPtr as usize != 0 {
+        bindNotification(tcb, ntfnPtr);
+    } else {
+        unbindNotification(tcb);
+    }
+    exception_t::EXCEPTION_NONE
+}
+
+pub fn decodeUnbindNotification(cap: *const cap_t)->exception_t {
+    let tcb = cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t;
+    unsafe {
+        if (*tcb).tcbBoundNotification != 0 {
+            panic!("TCB BindNotification: TCB already has a bound notification.");
+        }
+
+        setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+    }
+    invokeTCB_NotificationControl(tcb, 0 as *mut notification_t)
 }
