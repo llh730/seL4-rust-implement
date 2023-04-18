@@ -173,3 +173,7 @@ pub const thread_control_update_priority: usize = 0x1;
 pub const thread_control_update_ipc_buffer: usize = 0x2;
 pub const thread_control_update_space: usize = 0x4;
 pub const thread_control_update_mcp: usize = 0x8;
+
+pub const CONFIG_RESET_CHUNK_BITS:usize=8;
+pub const seL4_MinUntypedBits:usize=4;
+pub const seL4_MaxUntypedBits:usize=38;

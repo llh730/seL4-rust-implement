@@ -17,7 +17,7 @@ use super::{
         notification_ptr_set_ntfnBoundTCB, notification_ptr_set_ntfnMsgIdentifier,
         notification_ptr_set_ntfnQueue_head, notification_ptr_set_ntfnQueue_tail,
         notification_ptr_set_state, notification_t, thread_state_get_tsType,
-        thread_state_set_blockingObject, thread_state_set_tsType, thread_state_t,
+        thread_state_set_blockingObject, thread_state_set_tsType, thread_state_t, exception_t,
     },
 };
 
@@ -191,4 +191,9 @@ pub fn cancelAllSignals(ntfnPtr: *mut notification_t) {
         }
         rescheduleRequired();
     }
+}
+
+pub fn performInvocation_Notification(ntfn :*const notification_t,badge:usize)->exception_t{
+    sendSignal(ntfn, badge);
+    exception_t::EXCEPTION_NONE
 }
