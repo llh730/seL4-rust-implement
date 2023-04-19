@@ -41,7 +41,7 @@ impl Default for mdb_node_t {
         mdb_node_t { words: [0; 2] }
     }
 }
-#[derive(Debug, PartialEq,Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct cte_t {
     pub cap: *mut cap_t,
     pub cteMDBNode: *mut mdb_node_t,
@@ -1640,11 +1640,12 @@ pub fn cap_reply_cap_get_capReplyCanGrant(cap: *const cap_t) -> usize {
 }
 
 #[inline]
-pub fn cap_reply_cap_set_capReplyCanGrant(cap: *mut cap_t, v64: usize) {
+pub fn cap_reply_cap_set_capReplyCanGrant(cap: *mut cap_t, v64: usize)->*mut cap_t {
     unsafe {
         (*cap).words[0] &= !0x2usize;
         (*cap).words[0] |= (v64 << 1) & 0x2usize;
     }
+    cap
 }
 
 #[inline]
@@ -1801,15 +1802,14 @@ pub fn cap_notification_cap_get_capNtfnBadge(cap: *const cap_t) -> usize {
     }
 }
 
-
-#[inline] 
-pub fn cap_notification_cap_set_capNtfnBadge(cap:*mut cap_t,v64:usize){
-    unsafe{
-        (*cap).words[1]&=!0xffffffffffffffffusize;
-        (*cap).words[1]|=v64 &0xffffffffffffffffusize;
+#[inline]
+pub fn cap_notification_cap_set_capNtfnBadge(cap: *mut cap_t, v64: usize) -> *mut cap_t {
+    unsafe {
+        (*cap).words[1] &= !0xffffffffffffffffusize;
+        (*cap).words[1] |= v64 & 0xffffffffffffffffusize;
     }
+    cap
 }
-
 
 #[inline]
 pub fn cap_notification_cap_get_capNtfnCanReceive(cap: *const cap_t) -> usize {
@@ -1819,13 +1819,13 @@ pub fn cap_notification_cap_get_capNtfnCanReceive(cap: *const cap_t) -> usize {
     }
 }
 
-
-#[inline] 
-pub fn cap_notification_cap_set_capNtfnCanReceive(cap:*mut cap_t,v64:usize){
-    unsafe{
-        (*cap).words[0]&=!0x400000000000000usize;
-        (*cap).words[0]|=v64 &0x400000000000000usize;
+#[inline]
+pub fn cap_notification_cap_set_capNtfnCanReceive(cap: *mut cap_t, v64: usize) -> *mut cap_t {
+    unsafe {
+        (*cap).words[0] &= !0x400000000000000usize;
+        (*cap).words[0] |= v64 & 0x400000000000000usize;
     }
+    cap
 }
 
 #[inline]
@@ -1836,13 +1836,13 @@ pub fn cap_notification_cap_get_capNtfnCanSend(cap: *const cap_t) -> usize {
     }
 }
 
-
-#[inline] 
-pub fn cap_notification_cap_set_capNtfnCanSend(cap:*mut cap_t,v64:usize){
-    unsafe{
-        (*cap).words[0]&=!0x200000000000000usize;
-        (*cap).words[0]|=v64 &0x200000000000000usize;
+#[inline]
+pub fn cap_notification_cap_set_capNtfnCanSend(cap: *mut cap_t, v64: usize) -> *mut cap_t {
+    unsafe {
+        (*cap).words[0] &= !0x200000000000000usize;
+        (*cap).words[0] |= v64 & 0x200000000000000usize;
     }
+    cap
 }
 
 #[inline]
@@ -1853,11 +1853,11 @@ pub fn cap_notification_cap_get_capNtfnPtr(cap: *const cap_t) -> usize {
     }
 }
 
-
-#[inline] 
-pub fn cap_notification_cap_set_capNtfnPtr(cap:*mut cap_t,v64:usize){
-    unsafe{
-        (*cap).words[0]&=!0x7fffffffffusize;
-        (*cap).words[0]|=v64 &0x7fffffffffusize;
+#[inline]
+pub fn cap_notification_cap_set_capNtfnPtr(cap: *mut cap_t, v64: usize) -> *mut cap_t {
+    unsafe {
+        (*cap).words[0] &= !0x7fffffffffusize;
+        (*cap).words[0] |= v64 & 0x7fffffffffusize;
     }
+    cap
 }

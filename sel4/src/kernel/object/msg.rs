@@ -1,3 +1,5 @@
+use crate::{config::seL4_CapRightsBits, MASK};
+
 pub struct seL4_MessageInfo_t {
     pub words: [usize; 1],
 }
@@ -114,4 +116,52 @@ pub fn vm_attributes_set_riscvExecuteNever(
     vm_attributes.words[0] &= !0x1usize;
     vm_attributes.words[0] |= (v64 << 0) & 0x1usize;
     return vm_attributes;
+}
+
+pub struct seL4_CapRights_t {
+    word: usize,
+}
+
+#[inline]
+pub fn rightsFromWord(w: usize) -> seL4_CapRights_t {
+    seL4_CapRights_t { word: w }
+}
+
+#[inline]
+pub fn wordFromRights(rights: &seL4_CapRights_t) -> usize {
+    rights.word & MASK!(seL4_CapRightsBits)
+}
+
+#[inline]
+pub fn seL4_CapRights_get_capAllowGrantReply(rights: &seL4_CapRights_t) -> usize {
+    let ret = (rights.word & 0x8usize) >> 3;
+    ret
+}
+
+#[inline]
+pub fn seL4_CapRights_get_capAllowGrant(rights: &seL4_CapRights_t) -> usize {
+    let ret = (rights.word & 0x4usize) >> 2;
+    ret
+}
+
+#[inline]
+pub fn seL4_CapRights_get_capAllowRead(rights: &seL4_CapRights_t) -> usize {
+    let ret = (rights.word & 0x2usize) >> 1;
+    ret
+}
+
+#[inline]
+pub fn seL4_CapRights_get_capAllowWrite(rights: &seL4_CapRights_t) -> usize {
+    let ret = (rights.word & 0x1usize) >> 0;
+    ret
+}
+
+#[inline]
+pub fn vmRighsFromWord(w:usize)->usize{
+    w
+}
+
+#[inline]
+pub fn wordFromVMRights(rights:usize)->usize{
+    rights
 }

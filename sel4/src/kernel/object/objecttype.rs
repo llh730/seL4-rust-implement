@@ -1,27 +1,27 @@
 use core::{alloc::Layout, mem::size_of};
 
-use alloc::string::String;
-
 use crate::{
     config::{seL4_SlotBits, seL4_TCBBits, tcbCNodeEntries, RISCVMegaPageBits, RISCVPageBits},
     kernel::{
         object::structures::*,
-        thread::{
-            arch_tcb_t, getReStartPC, ksCurThread, setNextPC, setRestartPC, setThreadState, tcb_t,
-            Arch_initContext, ThreadStateRestart,
-        },
+        thread::{arch_tcb_t, tcb_t, Arch_initContext},
         vspace::{
             deleteASID, findVSpaceForASID, pageBitsForSize, unmapPage, unmapPageTable,
-            RISCV_4K_Page, RISCV_Mega_Page, VMReadWrite,
+            RISCV_4K_Page, RISCV_Mega_Page, VMKernelOnly, VMReadOnly, VMReadWrite,
         },
     },
-    println, MASK,
+    MASK,
 };
 extern crate alloc;
 
 use super::{
     cap::{ensureNoChildren, insertNewCap},
     endpoint::{cancelAllIPC, performInvocation_Endpoint},
+    msg::{
+        seL4_CapRights_get_capAllowGrant, seL4_CapRights_get_capAllowGrantReply,
+        seL4_CapRights_get_capAllowRead, seL4_CapRights_get_capAllowWrite, seL4_CapRights_t,
+        vmRighsFromWord, wordFromVMRights,
+    },
 };
 
 //bits
@@ -456,7 +456,6 @@ pub fn decodeInvocation(
             } else {
                 false
             };
-            // println!("ep cap :{:#x}",cap )
             performInvocation_Endpoint(
                 cap_endpoint_cap_get_capEPPtr(cap) as *const endpoint_t,
                 cap_endpoint_cap_get_capEPBadge(cap),
@@ -492,5 +491,73 @@ pub fn updateCapData(preserve: bool, newData: usize, cap: *const cap_t) -> *cons
             // let guardSize=
         }
         _ => panic!("invalid cap:{}", cap_get_capType(cap)),
+    }
+}
+
+pub fn maskVMRights(vmrights: usize, rights: seL4_CapRights_t) -> usize {
+    if vmrights == VMReadOnly && seL4_CapRights_get_capAllowRead(&rights) != 0 {
+        return VMReadOnly;
+    }
+    if vmrights == VMReadWrite && seL4_CapRights_get_capAllowRead(&rights) != 0 {
+        if seL4_CapRights_get_capAllowWrite(&rights) == 0 {
+            return VMReadOnly;
+        } else {
+            return VMReadWrite;
+        }
+    }
+    VMKernelOnly
+}
+
+pub fn maskCapRights(rights: seL4_CapRights_t, cap: *const cap_t) -> *const cap_t {
+    match cap_get_capType(cap) {
+        cap_null_cap | cap_domain_cap | cap_cnode_cap | cap_untyped_cap | cap_irq_control_cap
+        | cap_irq_handler_cap | cap_zombie_cap | cap_thread_cap | cap_page_table_cap
+        | cap_asid_control_cap | cap_asid_pool_cap => cap,
+        cap_endpoint_cap => {
+            let mut new_cap = cap_endpoint_cap_set_capCanSend(
+                cap,
+                cap_endpoint_cap_get_capCanSend(cap) & seL4_CapRights_get_capAllowWrite(&rights),
+            );
+            new_cap = cap_endpoint_cap_set_capCanReceive(
+                cap,
+                cap_endpoint_cap_get_capCanReceive(cap) & seL4_CapRights_get_capAllowRead(&rights),
+            );
+            new_cap = cap_endpoint_cap_set_capCanGrant(
+                cap,
+                cap_endpoint_cap_get_capCanGrant(cap) & seL4_CapRights_get_capAllowGrant(&rights),
+            );
+            new_cap = cap_endpoint_cap_set_capCanReceive(
+                cap,
+                cap_endpoint_cap_get_capCanGrantReply(cap)
+                    & seL4_CapRights_get_capAllowGrantReply(&rights),
+            );
+            new_cap
+        }
+        cap_notification_cap => {
+            let mut new_cap = cap_notification_cap_set_capNtfnCanSend(
+                cap as *mut cap_t,
+                cap_notification_cap_get_capNtfnCanSend(cap)
+                    & seL4_CapRights_get_capAllowWrite(&rights),
+            );
+            new_cap = cap_notification_cap_set_capNtfnCanReceive(
+                cap as *mut cap_t,
+                cap_notification_cap_get_capNtfnCanReceive(cap)
+                    & seL4_CapRights_get_capAllowRead(&rights),
+            );
+            new_cap
+        }
+        cap_reply_cap => {
+            let new_cap = cap_reply_cap_set_capReplyCanGrant(
+                cap as *mut cap_t,
+                cap_reply_cap_get_capReplyCanGrant(cap) & seL4_CapRights_get_capAllowGrant(&rights),
+            );
+            new_cap
+        }
+        cap_frame_cap => {
+            let mut vm_rights = vmRighsFromWord(cap_frame_cap_get_capFVMRights(cap));
+            vm_rights = maskVMRights(vm_rights, rights);
+            cap_frame_cap_set_capFVMRights(cap, wordFromVMRights(vm_rights))
+        }
+        _ => panic!("Invalid cap!"),
     }
 }

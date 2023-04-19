@@ -1,9 +1,24 @@
 extern crate alloc;
 use core::mem::size_of;
 
-use crate::kernel::object::{objecttype::*, structures::*};
+use crate::{
+    config::{
+        CNodeCancelBadgedSends, CNodeCopy, CNodeDelete, CNodeMint, CNodeMove, CNodeMutate,
+        CNodeRevoke, CNodeRotate,
+    },
+    kernel::{
+        boot::current_extra_caps,
+        object::{objecttype::*, structures::*},
+        thread::{ksCurThread, setThreadState, tcb_t, ThreadStateRestart},
+    },
+    syscall::process::getSyscallArg,
+};
 
-use super::endpoint::cancelBadgedSends;
+use super::{
+    cspace::{lookupPivotSlot, lookupSourceSlot, lookupTargetSlot},
+    endpoint::cancelBadgedSends,
+    msg::rightsFromWord,
+};
 
 fn setUntypedCapAsFull(_srcCap: *const cap_t, _newCap: *const cap_t, _srcSlot: *const cte_t) {
     unsafe {
@@ -434,10 +449,6 @@ pub fn invokeCNodeRevoke(destSlot: *const cte_t) -> exception_t {
     cteRevoke(destSlot)
 }
 
-// pub fn decodeCNodeInvocation(invLabel: usize, length: usize, cap: *const cap_t, buffer: usize) {
-//     let mut lu_ret = lookupSlot_ret_t::default();
-// }
-
 pub fn slotCapLongRunningDelete(slot: *const cte_t) -> bool {
     unsafe {
         if cap_get_capType((*slot).cap) == cap_null_cap {
@@ -451,4 +462,193 @@ pub fn slotCapLongRunningDelete(slot: *const cte_t) -> bool {
             _ => false,
         }
     }
+}
+
+pub fn decodeCNodeInvocation(
+    invLabel: usize,
+    length: usize,
+    cap: *const cap_t,
+    buffer: usize,
+) -> exception_t {
+    if length < 2 {
+        panic!("CNode operation: Truncated message.");
+    }
+    let index = getSyscallArg(0, buffer);
+    let w_bits = getSyscallArg(1, buffer);
+    let lu_ret = lookupTargetSlot(cap, index, w_bits);
+    let destSlot = lu_ret.slot;
+    if invLabel >= CNodeCopy && invLabel <= CNodeMutate {
+        unsafe {
+            if length < 4 || current_extra_caps.excaprefs[0] as usize == 0 {
+                panic!("CNode Copy/Mint/Move/Mutate: Truncated message.");
+            }
+        }
+        let srcIndex = getSyscallArg(2, buffer);
+        let srcDepth = getSyscallArg(3, buffer);
+        let srcRoot: *mut cap_t;
+        unsafe {
+            srcRoot = (*current_extra_caps.excaprefs[0]).cap;
+        }
+        let status = ensureEmptySlot(destSlot);
+        if status != exception_t::EXCEPTION_NONE {
+            panic!("CNode Copy/Mint/Move/Mutate: Destination not empty.");
+        }
+        let lu_ret = lookupSourceSlot(srcRoot, srcIndex, srcDepth);
+        if lu_ret.status != exception_t::EXCEPTION_NONE {
+            panic!("CNode Copy/Mint/Move/Mutate: Invalid source slot.");
+        }
+        let srcSlot = lu_ret.slot;
+        unsafe {
+            if cap_get_capType((*srcSlot).cap) == cap_null_cap {
+                panic!("CNode Copy/Mint/Move/Mutate: Source slot invalid or empty.");
+            }
+        }
+        let newCap: *mut cap_t;
+        let srcCap: *mut cap_t;
+
+        let isMove: bool;
+        match invLabel {
+            CNodeCopy => {
+                if length < 5 {
+                    panic!("Truncated message for CNode Copy operation.");
+                }
+                let cap_rights = rightsFromWord(getSyscallArg(4, buffer));
+                unsafe {
+                    srcCap = maskCapRights(cap_rights, (*srcSlot).cap) as *mut cap_t;
+                    let dc_ret = deriveCap(srcSlot, srcCap);
+                    if dc_ret.status != exception_t::EXCEPTION_NONE {
+                        panic!("Error deriving cap for CNode Copy operation.");
+                    }
+                    newCap = dc_ret.cap as *mut cap_t;
+                    isMove = false;
+                }
+            }
+            CNodeMint => {
+                if length < 6 {
+                    panic!("Truncated message for CNode Mint operation.");
+                }
+                let cap_rights = rightsFromWord(getSyscallArg(4, buffer));
+                let capData = getSyscallArg(5, buffer);
+                unsafe {
+                    srcCap = maskCapRights(cap_rights, (*srcSlot).cap) as *mut cap_t;
+                    let dc_ret = deriveCap(srcSlot, updateCapData(false, capData, srcCap));
+                    if dc_ret.status != exception_t::EXCEPTION_NONE {
+                        panic!("Error deriving cap for CNode Mint operation.");
+                    }
+                    newCap = dc_ret.cap as *mut cap_t;
+                    isMove = false;
+                }
+            }
+            CNodeMove => unsafe {
+                newCap = (*srcSlot).cap;
+                isMove = true;
+            },
+            CNodeMutate => {
+                if length < 5 {
+                    panic!("Truncated message for CNode Mutate operation.");
+                }
+                let capData = getSyscallArg(4, buffer);
+                unsafe {
+                    newCap = updateCapData(true, capData, (*srcSlot).cap) as *mut cap_t;
+                }
+                isMove = true;
+            }
+            _ => panic!("invalid invLabel:{}", invLabel),
+        }
+        if cap_get_capType(newCap) == cap_null_cap {
+            panic!("CNode Copy/Mint/Move/Mutate: Mutated cap would be invalid.");
+        }
+
+        unsafe {
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+        }
+        if isMove {
+            return invokeCNodeMove(newCap, srcSlot, destSlot);
+        } else {
+            return invokeCNodeInsert(newCap, srcSlot, destSlot);
+        }
+    }
+    if invLabel == CNodeRevoke {
+        unsafe {
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+            return invokeCNodeRevoke(destSlot);
+        }
+    }
+    if invLabel == CNodeDelete {
+        unsafe {
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+            return invokeCNodeDelete(destSlot);
+        }
+    }
+    if invLabel == CNodeCancelBadgedSends {
+        unsafe {
+            let destCap = (*destSlot).cap;
+            if !hasCancelSendRight(destCap) {
+                panic!("CNode CancelBadgedSends: Target cap invalid.");
+            }
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+            return invokeCNodeCancelBadgedSends(destCap);
+        }
+    }
+    if invLabel == CNodeRotate {
+        unsafe {
+            if length < 8
+                || current_extra_caps.excaprefs[0] as usize == 0
+                || current_extra_caps.excaprefs[1] as usize == 0
+            {
+                panic!("CNode Rotate: Target cap invalid.");
+            }
+            let pivotNewData = getSyscallArg(2, buffer);
+            let pivotIndex = getSyscallArg(3, buffer);
+            let pivotDepth = getSyscallArg(4, buffer);
+            let srcNewData = getSyscallArg(5, buffer);
+            let srcIndex = getSyscallArg(6, buffer);
+            let srcDepth = getSyscallArg(7, buffer);
+
+            let pivotRoot: *mut cap_t;
+            let pivotSlot: *const cte_t;
+            let srcRoot: *mut cap_t;
+            let srcSlot: *const cte_t;
+
+            pivotRoot = (*current_extra_caps.excaprefs[0]).cap;
+            srcRoot = (*current_extra_caps.excaprefs[1]).cap;
+            let mut lu_ret = lookupSourceSlot(srcRoot, srcIndex, srcDepth);
+            if lu_ret.status != exception_t::EXCEPTION_NONE {
+                return lu_ret.status;
+            }
+            srcSlot = lu_ret.slot as *mut cte_t;
+            lu_ret = lookupPivotSlot(pivotRoot, pivotIndex, pivotDepth);
+            if lu_ret.status != exception_t::EXCEPTION_NONE {
+                return lu_ret.status;
+            }
+            pivotSlot = lu_ret.slot as *mut cte_t;
+
+            if pivotSlot == srcSlot || pivotSlot == destSlot {
+                panic!("CNode Rotate: Pivot slot the same as source or dest slot.");
+            }
+
+            if srcSlot != destSlot {
+                let status = ensureEmptySlot(destSlot);
+                if status != exception_t::EXCEPTION_NONE {
+                    return status;
+                }
+            }
+            if cap_get_capType((*srcSlot).cap) == cap_null_cap
+                || cap_get_capType((*pivotSlot).cap) == cap_null_cap
+            {
+                panic!("CNode Rotate: Target cap invalid.");
+            }
+            let newSrcCap = updateCapData(true, srcNewData, (*srcSlot).cap);
+            let newPivot = updateCapData(true, pivotNewData, (*pivotSlot).cap);
+            if cap_get_capType(newSrcCap) == cap_null_cap {
+                panic!("CNode Rotate: Source cap invalid");
+            }
+            if cap_get_capType(newPivot) == cap_null_cap {
+                panic!("CNode Rotate: Pivot cap invalid");
+            }
+            setThreadState(ksCurThread as *mut tcb_t, ThreadStateRestart);
+            return invokeCNodeRotate(newSrcCap, newPivot, srcSlot, pivotSlot, destSlot);
+        }
+    }
+    exception_t::EXCEPTION_NONE
 }

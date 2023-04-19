@@ -754,7 +754,6 @@ pub fn RISCVGetReadFromVMRights(vm_rights: usize) -> bool {
     return vm_rights != VMKernelOnly;
 }
 
-// pub fn maskVMRights(vm_right1:usize,)
 pub fn makeUserPTE(paddr: usize, executable: bool, vm_rights: usize) -> usize {
     let write = RISCVGetWriteFromVMRights(vm_rights);
     let read = RISCVGetReadFromVMRights(vm_rights);

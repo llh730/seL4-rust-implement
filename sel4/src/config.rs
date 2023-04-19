@@ -98,6 +98,7 @@ pub const badgeRegister: usize = 9;
 pub const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = BIT!(seL4_MsgExtraCapBits) - 1;
 pub const n_msgRegisters: usize = 4;
+pub const seL4_CapRightsBits:usize=4;
 
 pub const RISCVInstructionMisaligned: usize = 0;
 pub const RISCVInstructionAccessFault: usize = 1;
